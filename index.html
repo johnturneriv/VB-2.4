@@ -1777,6 +1777,8 @@
                 floatingGapIn,
                 toeKickHeightIn,
                 bottomDetail,
+                sectionOverrides,
+
 
                 sinkCount,
                 sinkPosition,
@@ -4060,7 +4062,7 @@
                 return baseStyle;
             }
 
-            function computeEffectiveDrawerRails(style, faceHeightPx) {
+            function computeEffectiveDrawerRails(style, faceHeightPx, px) {
                 if (style === "slab") return { kind: "slab", railIn: 0 };
 
                 const faceHeightIn = faceHeightPx / px;
@@ -4124,7 +4126,9 @@
                 const allEqual = counts.every(c => c === counts[0]);
                 if (allEqual) return;
 
-                const o = sectionOverrides?.[sectionIndex];
+                const overrides = model?.sectionOverrides || (typeof sectionOverrides !== "undefined" ? sectionOverrides : {});
+                const o = overrides?.[sectionIndex];
+
                 const format = model._formatInchesFraction || formatInchesFraction;
 
                 // must have an override
@@ -4221,7 +4225,7 @@
                     drawFaceRect(x, curY, w, drawerH);
 
                     if (rowStyle !== "slab") {
-                        const eff = computeEffectiveDrawerRails(rowStyle, drawerH);
+                        const eff = computeEffectiveDrawerRails(rowStyle, drawerH, model.scale.inchToPx);
                         if (eff.railIn > 0) {
                             addShakerPanels(x, curY, w, drawerH, eff.railIn, eff.kind);
                         }
@@ -6709,32 +6713,32 @@
             // =====================================================
             // GLOBAL CLICK — clear section selection
             // =====================================================
-            document.addEventListener("click", () => {
+            document.addEventListener("click", (e) => {
+                // --- price modal open/close ---
+                const modal = document.getElementById("price-modal");
+                if (modal) {
+                    if (e.target.closest("#price-button")) {
+                        const model = computeModel();
+                        openPriceModal(model);
+                        return;
+                    }
+
+                    if (
+                        e.target.classList.contains("price-modal-backdrop") ||
+                        e.target.classList.contains("price-modal-close")
+                    ) {
+                        modal.classList.add("hidden");
+                        return;
+                    }
+                }
+
+                // --- clear section selection when clicking outside hit targets ---
                 if (selectedSectionIndex !== null) {
                     selectedSectionIndex = null;
                     updateDrawing();
                 }
             });
 
-            document.addEventListener("click", (e) => {
-                const modal = document.getElementById("price-modal");
-                if (!modal) return;
-
-                // open modal
-                if (e.target.closest("#price-button")) {
-                    const model = computeModel();
-                    openPriceModal(model);
-                    return;
-                }
-
-                // close modal (backdrop or close button)
-                if (
-                    e.target.classList.contains("price-modal-backdrop") ||
-                    e.target.classList.contains("price-modal-close")
-                ) {
-                    modal.classList.add("hidden");
-                }
-            });
 
 
 
