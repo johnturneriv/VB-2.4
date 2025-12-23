@@ -1259,6 +1259,38 @@
 
         }
 
+        function setupMobileNavHandlers() {
+            const backBtn = document.getElementById("mobile-back");
+            const nextBtn = document.getElementById("mobile-next");
+            if (!backBtn || !nextBtn) return;
+
+            backBtn.addEventListener("click", () => {
+                const activePage = document.querySelector(".page.active");
+                if (!activePage) return;
+
+                const localBack = activePage.querySelector(".nav-buttons .back");
+                if (!localBack || localBack.disabled) return;
+
+                const backPage = localBack.getAttribute("data-back");
+                if (!backPage) return;
+
+                goToPage(backPage);
+            });
+
+            nextBtn.addEventListener("click", () => {
+                const activePage = document.querySelector(".page.active");
+                if (!activePage) return;
+
+                const localNext = activePage.querySelector(".nav-buttons .next");
+                if (!localNext || localNext.disabled) return;
+
+                const nextPage = localNext.getAttribute("data-next");
+                if (!nextPage) return;
+
+                goToPage(nextPage);
+            });
+        }
+
 
         // =======================================================
         // INITIAL PRICE VISIBILITY (run once on page load)
@@ -1361,19 +1393,25 @@
         /* ======================================================================= */
 
         function ensureSvgSetup() {
-            const svg = document.getElementById("vanityDrawing");
-            if (!svg) return;
+            // setup BOTH SVGs (desktop + mobile) if they exist
+            const svgs = [
+                document.getElementById("vanityDrawing"),
+                document.getElementById("mobileVanityDrawing")
+            ].filter(Boolean);
 
-            // 🔒 SVG MUST HAVE A VIEWBOX — this defines drawing units
-            // Height is fixed; width will be expanded dynamically per run
-            svg.setAttribute("viewBox", "0 0 900 400");
+            svgs.forEach(svg => {
+                // 🔒 SVG MUST HAVE A VIEWBOX — this defines drawing units
+                // Height is fixed; width will be expanded dynamically per run
+                svg.setAttribute("viewBox", "0 0 900 400");
 
-            // 🔒 DO NOT AUTO-SCALE TO FIT CONTAINER
-            svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+                // 🔒 DO NOT AUTO-SCALE TO FIT CONTAINER
+                svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
 
-            // CSS controls scrolling, not SVG scaling
-            svg.style.display = "block";
+                // CSS controls scrolling, not SVG scaling
+                svg.style.display = "block";
+            });
         }
+
 
 
         // read optional frame overrides from inputs (if you add them later)
@@ -6829,7 +6867,7 @@
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            const svg = document.getElementById("vanityDrawing");
+            const svg = getActiveDrawingSvg();
             if (!svg) return;
 
             svg.style.transform =
@@ -6850,7 +6888,7 @@
         }
 
         function setupMobileDrawingGestures() {
-            const svg = document.getElementById("vanityDrawing");
+            const svg = getActiveDrawingSvg();
             if (!svg) return;
 
             // only enable on mobile widths
@@ -6895,8 +6933,10 @@
 
         window.addEventListener("load", () => {
             setupDrawingEngine();
+            setupMobileNavHandlers();
             setupMobileDrawingGestures();
         });
+
 
     </script>
 
