@@ -1209,9 +1209,12 @@
             const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
             if (backBtn) {
-                backBtn.style.display =
-                    (pageId === "page1" && isMobile) ? "none" : "";
+                const hideBack = (pageId === "page1"); // no back on page1
+                backBtn.style.display = hideBack ? "none" : "";
+                backBtn.disabled = hideBack;
+                if (hideBack) backBtn.textContent = "back";
             }
+
 
             if (priceBtn) {
                 priceBtn.style.display =
@@ -1300,8 +1303,6 @@
             updatePriceVisibility(activePage);
         }
 
-
-        /** make the bottom nav mirror the local page nav text + disabled state */
         function syncGlobalNavState() {
             const globalBack = document.getElementById("global-back");
             const globalNext = document.getElementById("global-next");
@@ -1311,31 +1312,54 @@
             if (!activePage) {
                 globalBack.disabled = true;
                 globalNext.disabled = true;
+                globalBack.textContent = "back";
+                globalNext.textContent = "next";
                 return;
+            }
+
+            // Helper: use the target page's <h2> as the label (fallback to "previous"/"next")
+            function getPageTitle(pageId) {
+                if (!pageId) return "";
+                const el = document.getElementById(pageId);
+                const h2 = el ? el.querySelector("h2") : null;
+                return (h2?.textContent || "").trim();
             }
 
             const localNav = activePage.querySelector(".nav-buttons");
             const localBack = localNav ? localNav.querySelector(".back") : null;
             const localNext = localNav ? localNav.querySelector(".next") : null;
 
-            // back button
+            // -----------------
+            // BACK button label
+            // -----------------
             if (localBack) {
-                globalBack.disabled = localBack.disabled;
-                globalBack.textContent = localBack.textContent || "back";
+                globalBack.disabled = !!localBack.disabled;
+
+                const backPageId = localBack.getAttribute("data-back") || "";
+                const backTitle = getPageTitle(backPageId);
+
+                if (!globalBack.disabled && backTitle) {
+                    globalBack.textContent = `back: ${backTitle.toLowerCase()}`;
+                } else {
+                    globalBack.textContent = "back";
+                }
             } else {
                 globalBack.disabled = true;
                 globalBack.textContent = "back";
             }
 
-            // next button
+            // -----------------
+            // NEXT button label (keep your current behavior)
+            // -----------------
             if (localNext) {
-                globalNext.disabled = localNext.disabled;
+                globalNext.disabled = !!localNext.disabled;
                 globalNext.textContent = localNext.textContent || "next";
             } else {
                 globalNext.disabled = true;
                 globalNext.textContent = "next";
             }
         }
+
 
         // hook up the bottom nav buttons
         (function attachGlobalNavHandlers() {
@@ -1397,25 +1421,18 @@
         /* ======================================================================= */
 
         function ensureSvgSetup() {
-            // setup BOTH SVGs (desktop + mobile) if they exist
-            const svgs = [
-                document.getElementById("vanityDrawing"),
-                document.getElementById("mobileVanityDrawing")
-            ].filter(Boolean);
+            const svg = getActiveDrawingSvg();
+            if (!svg) return;
 
-            svgs.forEach(svg => {
-                // 🔒 SVG MUST HAVE A VIEWBOX — this defines drawing units
-                // Height is fixed; width will be expanded dynamically per run
-                svg.setAttribute("viewBox", "0 0 900 400");
+            // 🔒 SVG MUST HAVE A VIEWBOX — this defines drawing units
+            svg.setAttribute("viewBox", "0 0 900 400");
 
-                // 🔒 DO NOT AUTO-SCALE TO FIT CONTAINER
-                svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+            // 🔒 DO NOT AUTO-SCALE TO FIT CONTAINER
+            svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
 
-                // CSS controls scrolling, not SVG scaling
-                svg.style.display = "block";
-            });
+            // CSS controls scrolling, not SVG scaling
+            svg.style.display = "block";
         }
-
 
 
         // read optional frame overrides from inputs (if you add them later)
@@ -6874,9 +6891,17 @@
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
+            // only apply transforms in mobile mode
+            const isMobile = window.matchMedia("(max-width: 768px)").matches;
+            if (!isMobile) {
+                svg.style.transform = "";
+                return;
+            }
+
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
         function getTouchDistance(t1, t2) {
             const dx = t2.clientX - t1.clientX;
@@ -6934,6 +6959,7 @@
                 lastTouchMid = null;
             });
         }
+
 
         window.addEventListener("load", () => {
             setupDrawingEngine();
