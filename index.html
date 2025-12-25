@@ -1374,18 +1374,20 @@
         /* === SECTION: MOBILE MODE DETECTION                                   === */
         /* ======================================================================= */
 
+        // TEMP: keep the real app visible on mobile.
+        // Your current #mobile-app does not render pages/forms, so hiding #desktop-layout breaks mobile.
         function checkMobileMode() {
-            if (window.innerWidth < 768) {
-                document.getElementById("desktop-layout").style.display = "none";
-                document.getElementById("mobile-app").classList.remove("hidden");
-            } else {
-                document.getElementById("desktop-layout").style.display = "flex";
-                document.getElementById("mobile-app").classList.add("hidden");
-            }
+            const desktop = document.getElementById("desktop-layout");
+            const mobileApp = document.getElementById("mobile-app");
+
+            if (desktop) desktop.style.display = "flex";
+            if (mobileApp) mobileApp.classList.add("hidden");
         }
 
         window.addEventListener("resize", checkMobileMode);
         window.addEventListener("load", checkMobileMode);
+
+
 
 
         /* ======================================================================= */
