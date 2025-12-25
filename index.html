@@ -494,14 +494,14 @@
 
         @media (max-width: 768px) {
 
-            /* HIDE DESKTOP APP COMPLETELY */
+            /* SHOW THE REAL APP ON MOBILE */
             #desktop-layout {
-                display: none;
+                display: flex;
             }
 
-            /* SHOW MOBILE MINI APP */
+            /* HIDE THE MINI APP (it doesn't contain the pages/forms yet) */
             #mobile-app {
-                display: flex;
+                display: none;
             }
 
             /* MOBILE DRAWING ALWAYS VISIBLE AT BOTTOM */
