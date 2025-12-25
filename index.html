@@ -1377,12 +1377,14 @@
         // TEMP: keep the real app visible on mobile.
         // Your current #mobile-app does not render pages/forms, so hiding #desktop-layout breaks mobile.
         function checkMobileMode() {
+            // Force the real app everywhere for now.
             const desktop = document.getElementById("desktop-layout");
             const mobileApp = document.getElementById("mobile-app");
 
             if (desktop) desktop.style.display = "flex";
             if (mobileApp) mobileApp.classList.add("hidden");
         }
+
 
         window.addEventListener("resize", checkMobileMode);
         window.addEventListener("load", checkMobileMode);
