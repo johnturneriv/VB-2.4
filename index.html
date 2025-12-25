@@ -4880,10 +4880,26 @@
             if (_drawPending) return;
             _drawPending = true;
 
-
-
             requestAnimationFrame(() => {
                 _drawPending = false;
+
+                // ✅ Never draw on page 1–2 (matches your rule)
+                const activePageId = document.querySelector(".page.active")?.id || "";
+                const shouldDraw = (activePageId !== "page1" && activePageId !== "page2");
+
+                // keep the mobile drawing wrapper in sync with the page
+                updateMobileDrawingVisibility();
+
+                if (!shouldDraw) {
+                    // optional: clear both SVGs so no stale drawing lingers
+                    const desktopSvg = document.getElementById("vanityDrawing");
+                    if (desktopSvg) desktopSvg.innerHTML = "";
+
+                    const mobileSvg = document.getElementById("mobileVanityDrawing");
+                    if (mobileSvg) mobileSvg.innerHTML = "";
+
+                    return;
+                }
 
                 const model = computeModel();
                 if (!model) return;
@@ -4894,15 +4910,46 @@
                 updateStileAndRailControlsVisibility(model);
 
                 const runModel = computeRunModel();
+                if (!runModel) return;
 
-                // 🔑 DRAW USING ACTIVE SVG + NEW SCALE
+                // =====================================================
+                // 🔑 Draw into the ACTIVE SVG, even if draw code
+                // still hard-codes "vanityDrawing"
+                // =====================================================
+                const activeSvg = getActiveDrawingSvg();
+                if (!activeSvg) return;
+
+                const desktopSvg = document.getElementById("vanityDrawing");
+                const mobileSvg = document.getElementById("mobileVanityDrawing");
+
+                const wasMobile = (activeSvg === mobileSvg);
+
+                // If mobile is active, temporarily alias its id to "vanityDrawing"
+                // so existing draw code continues to work without edits.
+                let restoreDesktopId = false;
+
+                if (wasMobile) {
+                    if (desktopSvg && desktopSvg !== activeSvg) {
+                        desktopSvg.id = "vanityDrawing_desktop";
+                        restoreDesktopId = true;
+                    }
+                    activeSvg.id = "vanityDrawing";
+                }
+
                 doActualRunDrawing(runModel);
+
+                // restore ids
+                if (wasMobile) {
+                    activeSvg.id = "mobileVanityDrawing";
+                    if (restoreDesktopId && desktopSvg) {
+                        desktopSvg.id = "vanityDrawing";
+                    }
+                }
 
                 updatePriceDisplay(runModel.objects[0].model);
                 updatePriceDisplay(model);
             });
         }
-
 
         function drawVanityAtX(svg, model, offsetX) {
             const originalX = model.scale.originX;
@@ -6187,7 +6234,9 @@
 
             // page index is already tracked globally
             // page1 = index 0, page2 = index 1
-            const hideOnPages = currentPageIndex <= 1;
+            const activePageId = document.querySelector(".page.active")?.id || "";
+            const hideOnPages = (activePageId === "page1" || activePageId === "page2");
+
 
             drawingWrap.style.display = hideOnPages ? "none" : "block";
         }
