@@ -1439,13 +1439,22 @@
         // TEMP: keep the real app visible on mobile.
         // Your current #mobile-app does not render pages/forms, so hiding #desktop-layout breaks mobile.
         function checkMobileMode() {
-            // Force the real app everywhere for now.
             const desktop = document.getElementById("desktop-layout");
-            const mobileApp = document.getElementById("mobile-app");
+            const mobile = document.getElementById("mobile-app");
+            if (!desktop || !mobile) return;
 
-            if (desktop) desktop.style.display = "flex";
-            if (mobileApp) mobileApp.classList.add("hidden");
+            if (window.innerWidth < 768) {
+                desktop.style.display = "none";
+                mobile.classList.remove("hidden");
+
+                // ✅ force correct mobile drawing visibility whenever we enter mobile mode
+                updateMobileDrawingVisibility();
+            } else {
+                desktop.style.display = "flex";
+                mobile.classList.add("hidden");
+            }
         }
+
 
 
         window.addEventListener("resize", checkMobileMode);
@@ -6265,14 +6274,15 @@
             const drawingWrap = document.getElementById("mobile-drawing");
             if (!drawingWrap) return;
 
-            // page index is already tracked globally
-            // page1 = index 0, page2 = index 1
-            const activePageId = document.querySelector(".page.active")?.id || "";
-            const hideOnPages = (activePageId === "page1" || activePageId === "page2");
+            // ✅ don't rely on currentPageIndex (it was undefined in your tests)
+            const activePageId = document.querySelector(".page.active")?.id || "page1";
 
+            // hide on page1 + page2 only
+            const hide = (activePageId === "page1" || activePageId === "page2");
 
-            drawingWrap.style.display = hideOnPages ? "none" : "block";
+            drawingWrap.style.display = hide ? "none" : "block";
         }
+
 
 
         function getFinalDrawerLayoutForSection(model, sectionIndex, openingHpx) {
