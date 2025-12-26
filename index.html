@@ -437,6 +437,11 @@
 
                 display: block;
                 z-index: 100;
+
+                #drawing-panel {
+                    display: none !important;
+                }
+
             }
 
             #vanityDrawing {
@@ -1211,12 +1216,21 @@
             const drawingPanel = document.getElementById("drawing-panel");
             if (!drawingPanel) return;
 
+            // 🔒 hard rule: desktop drawing panel is NEVER used on mobile
+            const isMobile = window.matchMedia("(max-width: 768px)").matches;
+            if (isMobile) {
+                drawingPanel.style.display = "none";
+                return;
+            }
+
+            // desktop behavior only
             if (pageId === "page1" || pageId === "page2") {
                 drawingPanel.style.display = "none";
             } else {
                 drawingPanel.style.display = "block";
             }
         }
+
 
         sidebarItems.forEach(item => {
             item.addEventListener("click", () => {
