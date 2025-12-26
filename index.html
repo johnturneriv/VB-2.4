@@ -1459,18 +1459,14 @@
         /* ======================================================================= */
 
         function ensureSvgSetup() {
-            const svg = getActiveDrawingSvg();
+            const svg = getActiveDrawingSvg();   // ✅ mobile uses #mobileVanityDrawing
             if (!svg) return;
 
-            // 🔒 SVG MUST HAVE A VIEWBOX — this defines drawing units
             svg.setAttribute("viewBox", "0 0 900 400");
-
-            // 🔒 DO NOT AUTO-SCALE TO FIT CONTAINER
             svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
-
-            // CSS controls scrolling, not SVG scaling
             svg.style.display = "block";
         }
+
 
         // read optional frame overrides from inputs (if you add them later)
         function readFrameOverrides() {
@@ -6976,12 +6972,13 @@
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            const svg = getActiveDrawingSvg();
+            const svg = getActiveDrawingSvg();   // ✅ transform the active svg
             if (!svg) return;
 
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
 
         function getTouchDistance(t1, t2) {
@@ -6998,7 +6995,7 @@
         }
 
         function setupMobileDrawingGestures() {
-            const svg = getActiveDrawingSvg();
+            const svg = document.getElementById("mobileVanityDrawing"); // gestures only on mobile svg
             if (!svg) return;
 
             // only enable on mobile widths
