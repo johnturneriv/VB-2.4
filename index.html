@@ -1216,14 +1216,15 @@
             const drawingPanel = document.getElementById("drawing-panel");
             if (!drawingPanel) return;
 
-            // 🔒 hard rule: desktop drawing panel is NEVER used on mobile
             const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+            // 🔒 HARD RULE: never show DESKTOP drawing panel on mobile (fixes page1 too)
             if (isMobile) {
                 drawingPanel.style.display = "none";
                 return;
             }
 
-            // desktop behavior only
+            // desktop behavior
             if (pageId === "page1" || pageId === "page2") {
                 drawingPanel.style.display = "none";
             } else {
@@ -6895,7 +6896,9 @@
 
             // 🔑 FORCE nav visibility for initial page
             updateGlobalNavVisibility("page1");
+            setDrawingPanelVisibility("page1");
             updateMobileDrawingVisibility();
+
 
 
 
