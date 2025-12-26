@@ -1078,7 +1078,8 @@
         </div>
     </div>
     <script>
-        let currentPageIndex = 0;
+        var currentPageIndex = 0;
+
 
         let initialDrawDone = false;
         let railsModeBeforeStilesOff = null;
@@ -1433,7 +1434,6 @@
             // CSS controls scrolling, not SVG scaling
             svg.style.display = "block";
         }
-
 
         // read optional frame overrides from inputs (if you add them later)
         function readFrameOverrides() {
@@ -6939,13 +6939,6 @@
         function applyMobileTransform() {
             const svg = getActiveDrawingSvg();
             if (!svg) return;
-
-            // only apply transforms in mobile mode
-            const isMobile = window.matchMedia("(max-width: 768px)").matches;
-            if (!isMobile) {
-                svg.style.transform = "";
-                return;
-            }
 
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
