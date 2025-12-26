@@ -406,6 +406,17 @@
             background: #fff;
         }
 
+        #drawing-panel {
+            background: rgba(255, 0, 0, 0.12) !important;
+            outline: 2px solid rgba(255, 0, 0, 0.85) !important;
+        }
+
+        #drawing-panel::before {
+            content: "DESKTOP DRAWING PANEL";
+            display: block;
+            font-size: 12px;
+            padding: 4px 6px;
+        }
 
 
         @media (max-width: 768px) {
@@ -481,7 +492,18 @@
             background: #fafafa;
             border-top: 1px solid #eaeaea;
             padding: 10px;
+            background: rgba(0, 120, 255, 0.18) !important;
+            outline: 2px solid rgba(0, 120, 255, 0.9) !important;
+
         }
+
+        #mobile-drawing::before {
+            content: "MOBILE DRAWING";
+            display: block;
+            font-size: 12px;
+            padding: 4px 6px;
+        }
+
 
         #mobileVanityDrawing {
             width: 100%;
