@@ -4,7 +4,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
 
     <title>Turnerrossa Vanity Builder 2.0</title>
 
@@ -14,6 +15,9 @@
     <!-- === SECTION: GLOBAL CSS (DESKTOP + MOBILE)                === -->
     <!-- =========================================================== -->
     <style>
+        /* =========================================================
+       GLOBAL BASE
+    ========================================================= */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -25,9 +29,12 @@
             background: #f7f8f9;
             color: #222;
             overflow-x: hidden;
+            /* prevent sideways scroll */
         }
 
-        /* FIELD SYSTEM (auto sizing, no strict columns) */
+        /* =========================================================
+       FIELD SYSTEM
+    ========================================================= */
         .field-row {
             display: flex;
             flex-wrap: wrap;
@@ -42,17 +49,6 @@
             min-width: 140px;
             max-width: 320px;
         }
-
-        .field-note {
-            font-size: 11px;
-            color: #1373d6;
-            /* your blue */
-            margin-top: 4px;
-            display: none;
-            /* important: hidden by default */
-        }
-
-
 
         .field.sm {
             max-width: 120px;
@@ -70,51 +66,9 @@
             margin-bottom: 6px;
             font-size: 14px;
             text-transform: lowercase;
-        }
-
-        /* Page 5: ensure dynamic rows align horizontally like other pages */
-        #page5 .field-row {
-            align-items: flex-end;
-        }
-
-        #page5 .field-card {
-            margin-bottom: 32px;
-        }
-
-
-
-        .section-selected {
-            stroke: #3b82f6;
-            stroke-width: 2;
-        }
-
-
-        /* keep dimension labels on one line and inputs same width */
-        .dimension-field label[for="height"] {
             white-space: nowrap;
+            /* prevent wrapping */
         }
-
-        .dimension-field input#width,
-        .dimension-field input#height,
-        .dimension-field input#depth {
-            min-width: 240px;
-            /* big enough so the long height label doesn't wrap */
-        }
-
-        .field-error {
-            min-height: 14px;
-            margin-top: 4px;
-            font-size: 11px;
-            color: #c0483a;
-            /* subtle red for errors */
-        }
-
-
-        /* Prevent labels from wrapping into two lines */
-        .field label {
-            white-space: nowrap;
-        }
-
 
         .field input,
         .field select {
@@ -125,14 +79,57 @@
             width: 100%;
         }
 
-        /* DESKTOP LAYOUT */
+        .field-note {
+            font-size: 11px;
+            color: #1373d6;
+            margin-top: 4px;
+            display: none;
+            /* hidden by default */
+        }
+
+        .field-error {
+            min-height: 14px;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #c0483a;
+        }
+
+        /* keep dimension labels on one line and inputs same width */
+        .dimension-field label[for="height"] {
+            white-space: nowrap;
+        }
+
+        .dimension-field input#width,
+        .dimension-field input#height,
+        .dimension-field input#depth {
+            min-width: 240px;
+        }
+
+        /* Page 5: align dynamic rows like other pages */
+        #page5 .field-row {
+            align-items: flex-end;
+        }
+
+        #page5 .field-card {
+            margin-bottom: 32px;
+        }
+
+        /* selection highlight */
+        .section-selected {
+            stroke: #3b82f6;
+            stroke-width: 2;
+        }
+
+        /* =========================================================
+       DESKTOP LAYOUT
+    ========================================================= */
         #desktop-layout {
             display: flex;
             width: 100%;
             min-height: 100vh;
         }
 
-        /* --- SIDEBAR --- */
+        /* Sidebar */
         #sidebar {
             width: 180px;
             background: #ffffff;
@@ -164,7 +161,7 @@
             font-weight: 600;
         }
 
-        /* MAIN PAGE AREA */
+        /* Main page area */
         #page-container {
             margin-left: 180px;
             padding: 30px;
@@ -179,21 +176,75 @@
             display: block;
         }
 
-        /* hide per-page nav bars; we use one global nav under the drawing */
+        /* hide per-page nav bars; global nav is used */
         .page .nav-buttons {
             display: none;
         }
 
-        /* =========================
-   PRICE UI
-========================= */
+        /* =========================================================
+       FIELD CARD UI
+    ========================================================= */
+        .field-card {
+            background: #fff;
+            padding: 22px 24px;
+            margin-bottom: 32px;
+            border-radius: 14px;
+            box-shadow: 0px 3px 12px rgba(0, 0, 0, 0.05);
+        }
 
+        .field-card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            text-transform: lowercase;
+        }
+
+        /* =========================================================
+       NAV BUTTONS (shared styles)
+    ========================================================= */
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .nav-split {
+            justify-content: space-between;
+        }
+
+        .nav-left,
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-buttons button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            background: #1a73e8;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: lowercase;
+        }
+
+        .nav-buttons button:disabled {
+            background: #b0b0b0;
+        }
+
+        .nav-buttons .back {
+            background: #999;
+        }
+
+        /* =========================================================
+       PRICE UI
+    ========================================================= */
         .price-wrapper {
             position: relative;
             margin-right: auto;
-            /* pushes buttons right */
         }
-
 
         .price-breakdown {
             position: absolute;
@@ -237,45 +288,35 @@
             margin-top: 8px;
         }
 
-
-        /* Field card UI */
-        .field-card {
-            background: #fff;
-            padding: 22px 24px;
-            margin-bottom: 32px;
-            border-radius: 14px;
-            box-shadow: 0px 3px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .field-card h2 {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 18px;
+        .price-button {
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
             text-transform: lowercase;
-        }
-
-        /* NAV BUTTONS */
-        .nav-buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-        }
-
-        .nav-split {
-            justify-content: space-between;
-        }
-
-        .nav-left,
-        .nav-right {
             display: flex;
             align-items: center;
-            gap: 12px;
         }
 
-        /* =========================
-   PRICE MODAL OVERLAY
-========================= */
+        .price-button:hover {
+            background: #15803d;
+        }
 
+        .price-button:active {
+            background: #15803d;
+        }
+
+        .price-value {
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        /* =========================================================
+       PRICE MODAL OVERLAY
+    ========================================================= */
         .price-modal {
             position: fixed;
             inset: 0;
@@ -322,93 +363,24 @@
             cursor: pointer;
         }
 
-        /* =========================
-   PRICE BUTTON
-========================= */
-
-        .price-button {
-            background: #1a73e8;
-            /* same blue as next */
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            /* EXACT match */
-            border-radius: 8px;
-            /* EXACT match */
-            font-size: 14px;
-            /* EXACT match */
-            cursor: pointer;
-            text-transform: lowercase;
-            display: flex;
-            align-items: center;
-        }
-
-
-        .price-button:hover {
-            background: #15803d;
-            /* darker green */
-        }
-
-        .price-button:active {
-            background: #15803d;
-        }
-
-        .price-value {
-            font-weight: 700;
-            margin-left: 6px;
-        }
-
-
-        .nav-buttons button {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            background: #1a73e8;
-            color: #fff;
-            font-size: 14px;
-            cursor: pointer;
-            text-transform: lowercase;
-        }
-
-        .nav-buttons button:disabled {
-            background: #b0b0b0;
-        }
-
-        .nav-buttons .back {
-            background: #999;
-        }
-
-        /* DRAWING PANEL */
+        /* =========================================================
+       DRAWING PANEL (DESKTOP SVG)
+    ========================================================= */
         #drawing-panel {
-            background: #ffffff;
+            background: rgba(255, 0, 0, 0.12) !important;
+            /* debug */
+            outline: 2px solid rgba(255, 0, 0, 0.85) !important;
+            /* debug */
             padding: 20px;
             margin-top: 40px;
             border-radius: 14px;
             box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
             display: none;
-            /* shown on page 3+ */
+            /* shown on page 3+ via JS */
             min-height: 420px;
             height: auto;
-
             overflow-x: auto;
-            /* 🔑 SCROLL CONTAINER */
             overflow-y: hidden;
-        }
-
-        /* DESKTOP SVG SIZE CONSTRAINT */
-        #drawing-panel #vanityDrawing {
-            display: block;
-            width: auto;
-            height: 420px;
-            /* desktop visual target */
-            max-height: 70vh;
-            /* prevents giant small vanities */
-            background: #fff;
-        }
-
-        #drawing-panel {
-            background: rgba(255, 0, 0, 0.12) !important;
-            outline: 2px solid rgba(255, 0, 0, 0.85) !important;
         }
 
         #drawing-panel::before {
@@ -418,46 +390,24 @@
             padding: 4px 6px;
         }
 
-
-        @media (max-width: 768px) {
-
-            #drawing-panel {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-
-                height: 33vh;
-                /* 🔑 bottom third */
-                min-height: 220px;
-
-                margin: 0;
-                border-radius: 0;
-                padding: 10px;
-
-                display: block;
-                z-index: 100;
-
-
-
-            }
-
-            #vanityDrawing {
-                height: 100%;
-            }
+        #drawing-panel #vanityDrawing {
+            display: block;
+            width: auto;
+            height: 420px;
+            max-height: 70vh;
+            background: #fff;
         }
 
-
-
+        /* Drawing gestures: allow pinch/pan ONLY on drawing (not the form) */
         #vanityDrawing {
             touch-action: none;
-            /* required for pinch */
+            /* your pinch logic depends on this */
             transform-origin: center center;
         }
 
-
-
-        /* MOBILE MINI-APP */
+        /* =========================================================
+       MOBILE MINI-APP (kept hidden for now)
+    ========================================================= */
         #mobile-app.hidden {
             display: none;
         }
@@ -488,16 +438,14 @@
             overflow-y: auto;
         }
 
-
-
         #mobile-drawing {
             height: 230px;
-            background: #fafafa;
             border-top: 1px solid #eaeaea;
             padding: 10px;
             background: rgba(0, 120, 255, 0.18) !important;
+            /* debug */
             outline: 2px solid rgba(0, 120, 255, 0.9) !important;
-
+            /* debug */
         }
 
         #mobile-drawing::before {
@@ -507,38 +455,9 @@
             padding: 4px 6px;
         }
 
-
         #mobileVanityDrawing {
             width: 100%;
             height: 100%;
-        }
-
-        /* =========================
-   MOBILE MODE SWITCH
-========================= */
-
-        @media (max-width: 768px) {
-
-            /* MOBILE: show the real (desktop) app layout */
-            #desktop-layout {
-                display: flex;
-            }
-
-            /* MOBILE: keep the mini app hidden for now */
-            #mobile-app {
-                display: none;
-            }
-
-            /* MOBILE DRAWING ALWAYS VISIBLE AT BOTTOM */
-            #mobile-drawing {
-                flex-shrink: 0;
-            }
-
-            /* MOBILE SVG FITS ITS CONTAINER */
-            #mobileVanityDrawing {
-                width: 100%;
-                height: 100%;
-            }
         }
 
         #mobile-nav {
@@ -564,6 +483,10 @@
             border-color: #000;
         }
 
+        /* =========================================================
+       MOBILE OVERRIDES
+       (We are showing the "real app" on mobile for now)
+    ========================================================= */
         @media (max-width: 768px) {
 
             /* remove sidebar + reclaim full width */
@@ -575,7 +498,6 @@
                 margin-left: 0 !important;
                 width: 100% !important;
                 padding: 16px !important;
-                /* smaller padding on phones */
             }
 
             /* make fields go full width on small screens */
@@ -595,8 +517,34 @@
             .field.lg {
                 max-width: none !important;
             }
+
+            /* drawing panel pinned to bottom on mobile */
+            #drawing-panel {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 33vh;
+                min-height: 220px;
+                margin: 0;
+                border-radius: 0;
+                padding: 10px;
+                display: block;
+                /* JS still controls on page1/2; this just allows it */
+                z-index: 100;
+            }
+
+            #vanityDrawing {
+                height: 100%;
+            }
+
+            /* keep the mini-app hidden for now */
+            #mobile-app {
+                display: none;
+            }
         }
     </style>
+
 </head>
 
 <body>
