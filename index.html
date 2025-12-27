@@ -438,9 +438,7 @@
                 display: block;
                 z-index: 100;
 
-                #drawing-panel {
-                    display: none !important;
-                }
+
 
             }
 
@@ -521,12 +519,12 @@
 
         @media (max-width: 768px) {
 
-            /* SHOW THE REAL APP ON MOBILE */
+            /* MOBILE: show the real (desktop) app layout */
             #desktop-layout {
                 display: flex;
             }
 
-            /* HIDE THE MINI APP (it doesn't contain the pages/forms yet) */
+            /* MOBILE: keep the mini app hidden for now */
             #mobile-app {
                 display: none;
             }
@@ -1439,29 +1437,9 @@
         // TEMP: keep the real app visible on mobile.
         // Your current #mobile-app does not render pages/forms, so hiding #desktop-layout breaks mobile.
         function checkMobileMode() {
-            const desktop = document.getElementById("desktop-layout");
-            const mobile = document.getElementById("mobile-app");
-            if (!desktop || !mobile) return;
-
-            if (window.innerWidth < 768) {
-                desktop.style.display = "none";
-                mobile.classList.remove("hidden");
-
-                // ✅ force correct mobile drawing visibility whenever we enter mobile mode
-                updateMobileDrawingVisibility();
-            } else {
-                desktop.style.display = "flex";
-                mobile.classList.add("hidden");
-            }
+            // Disabled: mobile/desktop visibility is controlled by CSS now.
+            // Leaving this avoids inline styles fighting your media queries.
         }
-
-
-
-        window.addEventListener("resize", checkMobileMode);
-        window.addEventListener("load", checkMobileMode);
-
-
-
 
         /* ======================================================================= */
         /* === SECTION: DRAWING ENGINE – V1 (OUTLINE ONLY)                       === */
