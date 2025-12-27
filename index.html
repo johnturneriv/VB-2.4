@@ -4,9 +4,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
     <title>Turnerrossa Vanity Builder 2.0</title>
 
@@ -482,6 +480,26 @@
             background: #000;
             color: #fff;
             border-color: #000;
+        }
+
+
+        /* MOBILE: prevent page-level pinch zoom; allow gestures only inside drawing area */
+        @media (max-width: 768px) {
+
+            html,
+            body {
+                touch-action: pan-y;
+            }
+
+            /* drawing panel: allow panning + pinch inside the panel */
+            #drawing-panel {
+                touch-action: pan-x pan-y;
+            }
+
+            /* svg: allow custom pinch handler */
+            #drawing-panel #vanityDrawing {
+                touch-action: none;
+            }
         }
 
         /* =========================================================
@@ -7015,6 +7033,7 @@
 
             svg.addEventListener("touchmove", (e) => {
                 if (e.touches.length === 2) {
+                    e.stopPropagation();
                     e.preventDefault();
 
                     const newDist = getTouchDistance(e.touches[0], e.touches[1]);
