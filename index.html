@@ -536,16 +536,22 @@
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
+
+                /* IMPORTANT: allow horizontal scroll gestures */
+                touch-action: pan-x;
             }
 
-            #vanityDrawing {
+            /* SVG should NOT capture touch on mobile */
+            #drawing-panel #vanityDrawing {
                 height: 100%;
+                touch-action: auto !important;
             }
 
             /* keep the mini-app hidden for now */
             #mobile-app {
                 display: none;
             }
+
         }
 
         /* =========================
