@@ -529,7 +529,6 @@
                 margin: 0;
                 border-radius: 0;
                 padding: 10px;
-                display: block;
                 /* JS still controls on page1/2; this just allows it */
                 z-index: 100;
             }
@@ -1195,21 +1194,12 @@
             const drawingPanel = document.getElementById("drawing-panel");
             if (!drawingPanel) return;
 
-            const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
-            // 🔒 HARD RULE: never show DESKTOP drawing panel on mobile (fixes page1 too)
-            if (isMobile) {
-                drawingPanel.style.display = "none";
-                return;
-            }
-
-            // desktop behavior
-            if (pageId === "page1" || pageId === "page2") {
-                drawingPanel.style.display = "none";
-            } else {
-                drawingPanel.style.display = "block";
-            }
+            // Rule for ALL devices:
+            // page1 + page2 => hide drawing
+            const hide = (pageId === "page1" || pageId === "page2");
+            drawingPanel.style.display = hide ? "none" : "block";
         }
+
 
 
         sidebarItems.forEach(item => {
@@ -4823,12 +4813,15 @@
         function getActiveDrawingSvg() {
             const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
+            // OPTION A: On mobile we're showing the DESKTOP app layout,
+            // so we must draw into the desktop SVG.
             if (isMobile) {
-                return document.getElementById("mobileVanityDrawing");
+                return document.getElementById("vanityDrawing");
             }
 
             return document.getElementById("vanityDrawing");
         }
+
 
         function computeDrawingScale(svg, model) {
             const {
