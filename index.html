@@ -6970,12 +6970,14 @@
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            const svg = getActiveDrawingSvg();   // ✅ transform the active svg
+            // We are transforming the DESKTOP svg that is visible on mobile
+            const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
 
 
@@ -6993,12 +6995,17 @@
         }
 
         function setupMobileDrawingGestures() {
-            const svg = document.getElementById("mobileVanityDrawing"); // gestures only on mobile svg
+            // We are currently using the DESKTOP drawing panel on mobile,
+            // so gestures must attach to #vanityDrawing (not #mobileVanityDrawing).
+            const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
             // only enable on mobile widths
             if (window.innerWidth > 768) return;
 
+            // IMPORTANT:
+            // - do NOT block 1-finger scrolling (that’s how horizontal scroll works)
+            // - only preventDefault on 2-finger gestures (pinch)
             svg.addEventListener("touchstart", (e) => {
                 if (e.touches.length === 2) {
                     lastTouchDist = getTouchDistance(e.touches[0], e.touches[1]);
@@ -7030,11 +7037,57 @@
                 }
             }, { passive: false });
 
-            svg.addEventListener("touchend", () => {
-                lastTouchDist = null;
-                lastTouchMid = null;
+            svg.addEventListener("touchend", (e) => {
+                // when pinch ends, reset trackers
+                if (!e.touches || e.touches.length < 2) {
+                    lastTouchDist = null;
+                    lastTouchMid = null;
+                }
             });
         }
+
+        const svg = document.getElementById("mobileVanityDrawing"); // gestures only on mobile svg
+        if (!svg) return;
+
+        // only enable on mobile widths
+        if (window.innerWidth > 768) return;
+
+        svg.addEventListener("touchstart", (e) => {
+            if (e.touches.length === 2) {
+                lastTouchDist = getTouchDistance(e.touches[0], e.touches[1]);
+                lastTouchMid = getTouchMidpoint(e.touches[0], e.touches[1]);
+            }
+        }, { passive: false });
+
+        svg.addEventListener("touchmove", (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+
+                const newDist = getTouchDistance(e.touches[0], e.touches[1]);
+                const newMid = getTouchMidpoint(e.touches[0], e.touches[1]);
+
+                const scaleDelta = newDist / lastTouchDist;
+                mobileScale *= scaleDelta;
+
+                // clamp scale
+                mobileScale = Math.max(0.5, Math.min(3, mobileScale));
+
+                // pan relative to midpoint movement
+                mobileTranslateX += newMid.x - lastTouchMid.x;
+                mobileTranslateY += newMid.y - lastTouchMid.y;
+
+                lastTouchDist = newDist;
+                lastTouchMid = newMid;
+
+                applyMobileTransform();
+            }
+        }, { passive: false });
+
+        svg.addEventListener("touchend", () => {
+            lastTouchDist = null;
+            lastTouchMid = null;
+        });
+
 
 
         window.addEventListener("load", () => {
