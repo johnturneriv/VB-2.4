@@ -406,8 +406,8 @@
         }
 
         /* =========================================================
-       MOBILE MINI-APP (kept hidden for now)
-    ========================================================= */
+   MOBILE MINI-APP (kept hidden for now)
+========================================================= */
         #mobile-app.hidden {
             display: none;
         }
@@ -484,9 +484,9 @@
         }
 
         /* =========================================================
-       MOBILE OVERRIDES
-       (We are showing the "real app" on mobile for now)
-    ========================================================= */
+   MOBILE OVERRIDES
+   (We are showing the "real app" on mobile for now)
+========================================================= */
         @media (max-width: 768px) {
 
             /* remove sidebar + reclaim full width */
@@ -498,6 +498,8 @@
                 margin-left: 0 !important;
                 width: 100% !important;
                 padding: 16px !important;
+                padding-bottom: 260px !important;
+                /* space for fixed drawing panel */
             }
 
             /* make fields go full width on small screens */
@@ -529,8 +531,11 @@
                 margin: 0;
                 border-radius: 0;
                 padding: 10px;
-                /* JS still controls on page1/2; this just allows it */
-                z-index: 100;
+                z-index: 1500;
+
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
             }
 
             #vanityDrawing {
@@ -540,6 +545,26 @@
             /* keep the mini-app hidden for now */
             #mobile-app {
                 display: none;
+            }
+        }
+
+        /* =========================
+   MOBILE: FIXED GLOBAL NAV
+========================= */
+        @media (max-width: 768px) {
+            #global-nav {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 2000;
+                background: #fff;
+                border-bottom: 1px solid #eaeaea;
+            }
+
+            /* push page content below fixed nav */
+            #page-container {
+                padding-top: 76px !important;
             }
         }
     </style>
