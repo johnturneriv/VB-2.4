@@ -418,6 +418,9 @@
             background: #fff;
             position: relative;
             z-index: 1;
+            margin-left: auto;
+            margin-right: auto;
+
         }
 
 
@@ -1346,7 +1349,8 @@
 
             <!-- drawing panel -->
             <div id="drawing-panel">
-                <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
+                <svg id="vanityDrawing" preserveAspectRatio="xMidYMid meet"></svg>
+
                 <button id="mobile-expand-close" class="mobile-expand-close">close</button>
 
 
@@ -1563,12 +1567,16 @@
             const idx = pagesArr.findIndex(p => p.id === pageId);
             currentPageIndex = idx >= 0 ? idx : 0;
 
-            updateDrawing();
-            syncGlobalNavState();
+            // ✅ IMPORTANT: let UI visibility/layout settle FIRST (panel display, etc)
             syncUIState(pageId);
+            syncGlobalNavState();
 
-
+            // ✅ Draw AFTER layout is updated so svg.getBoundingClientRect() is correct
+            requestAnimationFrame(() => {
+                updateDrawing();
+            });
         }
+
 
         function setupMobileNavHandlers() {
             // ----------------------------
@@ -1800,7 +1808,8 @@
             if (!svg) return;
 
             svg.setAttribute("viewBox", "0 0 900 400");
-            svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+            svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
             svg.style.display = "block";
         }
 
