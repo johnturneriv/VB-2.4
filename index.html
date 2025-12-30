@@ -25,7 +25,8 @@
         }
 
         body {
-            background: #f7f8f9;
+            background: #ffffff;
+
             color: #222;
             overflow-x: hidden;
             /* prevent sideways scroll */
@@ -391,20 +392,20 @@
        DRAWING PANEL (DESKTOP SVG)
     ========================================================= */
         #drawing-panel {
-            background: rgba(255, 0, 0, 0.12) !important;
-            /* debug */
-            outline: 2px solid rgba(255, 0, 0, 0.85) !important;
-            /* debug */
             padding: 20px;
             margin-top: 40px;
             border-radius: 14px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+
             display: none;
             /* shown on page 3+ via JS */
             min-height: 420px;
             height: auto;
             overflow-x: auto;
             overflow-y: hidden;
+            background: #fff;
+            border: 1px solid #e6e8ee;
+            outline: none;
+
         }
 
         /* pin price button inside drawing panel (stays put during horizontal scroll) */
@@ -414,23 +415,19 @@
 
         #drawing-panel .drawing-price {
             position: sticky;
-            top: 10px;
-            right: 10px;
+            top: 4px;
+            /* tight top gap */
+            right: 4px;
+            /* tight right gap */
             float: right;
-            /* puts it on the right edge for sticky */
             z-index: 5000;
+
             border-radius: 999px;
-            padding: 8px 12px;
+            padding: 6px 10px;
+            /* slightly tighter button */
         }
 
 
-
-        #drawing-panel::before {
-            content: "DESKTOP DRAWING PANEL";
-            display: block;
-            font-size: 12px;
-            padding: 4px 6px;
-        }
 
         #drawing-panel #vanityDrawing {
             display: block;
@@ -438,13 +435,10 @@
             height: 420px;
             max-height: 70vh;
             background: #fff;
-
-            #drawing-panel #vanityDrawing {
-                position: relative;
-                z-index: 1;
-            }
-
+            position: relative;
+            z-index: 1;
         }
+
 
         /* Drawing gestures: allow pinch/pan ONLY on drawing (not the form) */
         #vanityDrawing {
@@ -685,13 +679,6 @@
 
         #sidebar .nav-item.active {
             background: #f5f6f8;
-        }
-
-        /* drawing panel matches cards */
-        #drawing-panel {
-            background: #f5f6f8;
-            outline: none !important;
-            /* remove debug when ready */
         }
     </style>
 
