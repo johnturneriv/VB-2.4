@@ -82,6 +82,7 @@
             background-color: #fff;
             appearance: none;
             /* 🔑 removes native boxy UI */
+            -webkit-text-fill-color: #222;
             -webkit-appearance: none;
             -moz-appearance: none;
         }
@@ -449,6 +450,11 @@
             }
 
             .mobile-drawing-btn {
+                color: #222;
+                /* ⬅ force text color */
+                -webkit-appearance: none;
+                /* ⬅ stop iOS styling */
+                appearance: none;
                 font-size: clamp(11px, 3.2vw, 14px);
                 padding: 0 8px;
                 white-space: nowrap;
@@ -682,7 +688,11 @@
                 font-size: 14px;
                 cursor: pointer;
                 text-transform: lowercase;
-
+                color: #222;
+                /* ⬅ force text color */
+                -webkit-appearance: none;
+                /* ⬅ stop iOS styling */
+                appearance: none;
                 /* prevent text cutoff */
                 font-size: clamp(11px, 3.2vw, 14px);
                 padding: 0 8px;
@@ -6647,17 +6657,17 @@
         }
 
         function updateMobileDrawingVisibility() {
-            const drawingWrap = document.getElementById("mobile-drawing");
-            if (!drawingWrap) return;
+            const shell = document.getElementById("mobile-drawing-shell");
+            if (!shell) return;
 
-            // ✅ don't rely on currentPageIndex (it was undefined in your tests)
             const activePageId = document.querySelector(".page.active")?.id || "page1";
 
             // hide on page1 + page2 only
             const hide = (activePageId === "page1" || activePageId === "page2");
 
-            drawingWrap.style.display = hide ? "none" : "block";
+            shell.style.display = hide ? "none" : "flex";
         }
+
 
 
 
