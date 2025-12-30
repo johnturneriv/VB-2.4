@@ -743,15 +743,14 @@
             }
 
             /* landscape rotation */
-            @media (max-width: 768px) {
-                body.drawing-expanded #drawing-panel #vanityDrawing {
-                    width: 100vh !important;
-                    height: 100vw !important;
-                    max-height: none !important;
-                    transform-origin: center center;
-                }
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                width: 100vh !important;
+                /* swapped */
+                height: 100vw !important;
+                /* swapped */
+                max-height: none !important;
+                transform-origin: center center;
             }
-
 
 
 
