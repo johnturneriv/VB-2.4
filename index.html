@@ -523,17 +523,58 @@
 ========================================================= */
         @media (max-width: 768px) {
 
-            body.drawing-expanded #drawing-panel {
-                height: 78vh !important;
-                /* big view */
-                min-height: 0 !important;
+            /* full-screen takeover */
+            body.drawing-expanded {
+                overflow: hidden;
             }
 
+            body.drawing-expanded #drawing-panel {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+
+                height: 100vh !important;
+                min-height: 0 !important;
+
+                z-index: 5000;
+                padding: 12px;
+                background: #fff;
+            }
+
+            /* hide "view price" in expanded mode */
+            body.drawing-expanded #mobile-price-button {
+                display: none !important;
+            }
+
+            /* turn the expand button into the close "X" */
+            body.drawing-expanded #mobile-expand-button {
+                position: fixed !important;
+                top: 10px;
+                right: 10px;
+                z-index: 6000;
+
+                width: 44px;
+                height: 44px;
+                border-radius: 999px;
+                font-size: 22px;
+                line-height: 1;
+                padding: 0;
+            }
+
+            /* make sure the drawing itself fills the screen height */
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                height: 100% !important;
+                max-height: none !important;
+            }
+
+            /* prevent extra space being reserved for the “pinned” panel layout */
             body.drawing-expanded #page-container {
                 padding-bottom: 0 !important;
-                /* reclaim space */
             }
         }
+
 
 
         /* =========================================================
@@ -1494,39 +1535,46 @@
         }
 
         function setupMobileNavHandlers() {
+            // ----------------------------
+            // Optional: mobile back/next
+            // (only if those buttons exist)
+            // ----------------------------
             const backBtn = document.getElementById("mobile-back");
             const nextBtn = document.getElementById("mobile-next");
-            if (!backBtn || !nextBtn) return;
 
-            backBtn.addEventListener("click", () => {
-                const activePage = document.querySelector(".page.active");
-                if (!activePage) return;
+            if (backBtn) {
+                backBtn.addEventListener("click", () => {
+                    const activePage = document.querySelector(".page.active");
+                    if (!activePage) return;
 
-                const localBack = activePage.querySelector(".nav-buttons .back");
-                if (!localBack || localBack.disabled) return;
+                    const localBack = activePage.querySelector(".nav-buttons .back");
+                    if (!localBack || localBack.disabled) return;
 
-                const backPage = localBack.getAttribute("data-back");
-                if (!backPage) return;
+                    const backPage = localBack.getAttribute("data-back");
+                    if (!backPage) return;
 
-                goToPage(backPage);
-            });
+                    goToPage(backPage);
+                });
+            }
 
-            nextBtn.addEventListener("click", () => {
-                const activePage = document.querySelector(".page.active");
-                if (!activePage) return;
+            if (nextBtn) {
+                nextBtn.addEventListener("click", () => {
+                    const activePage = document.querySelector(".page.active");
+                    if (!activePage) return;
 
-                const localNext = activePage.querySelector(".nav-buttons .next");
-                if (!localNext || localNext.disabled) return;
+                    const localNext = activePage.querySelector(".nav-buttons .next");
+                    if (!localNext || localNext.disabled) return;
 
-                const nextPage = localNext.getAttribute("data-next");
-                if (!nextPage) return;
+                    const nextPage = localNext.getAttribute("data-next");
+                    if (!nextPage) return;
 
-                goToPage(nextPage);
-            });
+                    goToPage(nextPage);
+                });
+            }
 
-            // ==========================================
-            // MOBILE DRAWING BAR BUTTONS (fixed bar)
-            // ==========================================
+            // ----------------------------
+            // Mobile drawing bar buttons
+            // ----------------------------
             const mobilePriceBtn = document.getElementById("mobile-price-button");
             if (mobilePriceBtn) {
                 mobilePriceBtn.addEventListener("click", (e) => {
@@ -1538,9 +1586,27 @@
 
             const mobileExpandBtn = document.getElementById("mobile-expand-button");
             if (mobileExpandBtn) {
+                const setExpandBtnLabel = () => {
+                    const expanded = document.body.classList.contains("drawing-expanded");
+                    mobileExpandBtn.textContent = expanded ? "×" : "expand";
+                };
+
+                // initial label
+                setExpandBtnLabel();
+
                 mobileExpandBtn.addEventListener("click", (e) => {
                     e.stopPropagation();
+
                     document.body.classList.toggle("drawing-expanded");
+                    setExpandBtnLabel();
+
+                    // reset transform when toggling (prevents “lost in space”)
+                    if (!document.body.classList.contains("drawing-expanded")) {
+                        mobileScale = 1;
+                        mobileTranslateX = 0;
+                        mobileTranslateY = 0;
+                    }
+                    applyMobileTransform();
                 });
             }
         }
@@ -1760,7 +1826,7 @@
 
             RETURN_SIDE: 250,          // per exposed side
 
-            EXTRA_DRAWER: 125          // ✅ per additional drawer (user-added)
+            EXTRA_DRAWER: 175          // ✅ per additional drawer (user-added)
         };
 
         function computePriceBreakdown(model) {
@@ -7258,13 +7324,19 @@
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            // We are transforming the DESKTOP svg that is visible on mobile
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
+            const expanded = document.body.classList.contains("drawing-expanded");
+
+            // When expanded, rotate first, then apply pan/zoom.
+            // (Pan directions will feel a little different due to rotation—good enough for now.)
+            const rot = expanded ? "rotate(90deg)" : "";
+
             svg.style.transform =
-                `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
+                `${rot} translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
 
 
