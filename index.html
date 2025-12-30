@@ -702,10 +702,11 @@
                 background: #fff;
             }
 
-            /* hide "view price" in expanded mode */
-            body.drawing-expanded #mobile-price-button {
+            /* hide the entire bar in expanded mode */
+            body.drawing-expanded #mobile-drawing-bar {
                 display: none !important;
             }
+
 
             /* turn the expand button into the close "X" */
             body.drawing-expanded #mobile-expand-button {
@@ -7337,6 +7338,37 @@
             };
         }
 
+        function setupMobileDrawingBarHandlers() {
+            const expandBtn = document.getElementById("mobile-expand-button");
+            const priceBtn = document.getElementById("mobile-price-button");
+            if (!expandBtn || !priceBtn) return;
+
+            function setExpanded(on) {
+                document.body.classList.toggle("drawing-expanded", !!on);
+
+                // toggle button label
+                expandBtn.textContent = on ? "×" : "expand";
+            }
+
+            // Expand / collapse
+            expandBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isOn = document.body.classList.contains("drawing-expanded");
+                setExpanded(!isOn);
+            });
+
+            // View price (reuse your existing modal)
+            priceBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const model = computeModel();
+                openPriceModal(model);
+            });
+        }
+
 
         function setupMobileDrawingGestures() {
             // We are currently using the DESKTOP drawing panel on mobile,
@@ -7401,8 +7433,10 @@
         window.addEventListener("load", () => {
             setupDrawingEngine();
             setupMobileNavHandlers();
+            setupMobileDrawingBarHandlers();   // ✅ add this
             setupMobileDrawingGestures();
         });
+
 
 
     </script>
