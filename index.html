@@ -72,11 +72,36 @@
         .field input,
         .field select {
             padding: 9px 12px;
-            border-radius: 7px;
-            border: 1px solid #ccc;
+            border-radius: 10px;
+            /* ⬅ slightly softer like inputs */
+            border: 1px solid #d1d5db;
+            /* softer gray */
             font-size: 14px;
             width: 100%;
+            background-color: #fff;
+            appearance: none;
+            /* 🔑 removes native boxy UI */
+            -webkit-appearance: none;
+            -moz-appearance: none;
         }
+
+        .field select {
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23666' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+            padding-right: 36px;
+            /* room for arrow */
+        }
+
+        .field input:focus,
+        .field select:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 1px rgba(26, 115, 232, 0.2);
+        }
+
 
         .field-note {
             font-size: 11px;
@@ -595,6 +620,53 @@
             #page-container {
                 padding-top: 76px !important;
             }
+        }
+
+        /* =========================================================
+   THEME A — clean / seamless
+   (visual only — no layout changes)
+========================================================= */
+
+        /* page background */
+        body {
+            background: #ffffff;
+        }
+
+        /* cards become subtle panels */
+        .field-card {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin-bottom: 24px;
+            /* keep spacing between sections */
+            border-radius: 0;
+        }
+
+        .field-card h2 {
+            margin-bottom: 10px;
+        }
+
+
+        /* sidebar softened */
+        #sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e6e8ee;
+        }
+
+        #sidebar .nav-item:hover {
+            background: #f3f4f6;
+        }
+
+        #sidebar .nav-item.active {
+            background: #f5f6f8;
+        }
+
+        /* drawing panel matches cards */
+        #drawing-panel {
+            background: #f5f6f8;
+            outline: none !important;
+            /* remove debug when ready */
         }
     </style>
 
