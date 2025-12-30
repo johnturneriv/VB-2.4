@@ -707,6 +707,48 @@
                 display: none !important;
             }
 
+            /* hidden by default */
+            #mobile-expand-close {
+                display: none;
+            }
+
+            /* show close X only in expanded mode */
+            body.drawing-expanded #mobile-expand-close {
+                display: block !important;
+                position: fixed !important;
+                top: 10px;
+                right: 10px;
+                z-index: 7000;
+
+                width: 44px;
+                height: 44px;
+                border-radius: 999px;
+                border: 1px solid #d1d5db;
+                background: #fff;
+                font-size: 26px;
+                line-height: 1;
+                padding: 0;
+            }
+
+            /* center the rotated svg and prevent scrollbars */
+            body.drawing-expanded #drawing-panel {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+            }
+
+            /* landscape rotation */
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                width: 100vh !important;
+                /* swapped */
+                height: 100vw !important;
+                /* swapped */
+                max-height: none !important;
+                transform-origin: center center;
+            }
+
+
 
             /* turn the expand button into the close "X" */
             body.drawing-expanded #mobile-expand-button {
@@ -1299,6 +1341,8 @@
             <!-- drawing panel -->
             <div id="drawing-panel">
                 <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
+                <button id="mobile-expand-close" class="mobile-expand-close" type="button">×</button>
+
             </div>
 
 
@@ -7311,18 +7355,14 @@
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
-            const expanded = document.body.classList.contains("drawing-expanded");
+            const isExpanded = document.body.classList.contains("drawing-expanded");
 
-            // When expanded, rotate first, then apply pan/zoom.
-            // (Pan directions will feel a little different due to rotation—good enough for now.)
-            const rot = expanded ? "rotate(90deg)" : "";
+            // In expanded mode, rotate to landscape first, then apply the same pan/zoom
+            const rotate = isExpanded ? " rotate(-90deg)" : "";
 
             svg.style.transform =
-                `${rot} translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
+                `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})${rotate}`;
         }
-
-
-
 
 
         function getTouchDistance(t1, t2) {
@@ -7341,29 +7381,31 @@
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");
             const priceBtn = document.getElementById("mobile-price-button");
-            if (!expandBtn || !priceBtn) return;
+            const closeBtn = document.getElementById("mobile-expand-close");
+            if (!expandBtn || !priceBtn || !closeBtn) return;
 
             function setExpanded(on) {
                 document.body.classList.toggle("drawing-expanded", !!on);
-
-                // toggle button label
-                expandBtn.textContent = on ? "×" : "expand";
+                closeBtn.style.display = on ? "block" : "none";
+                expandBtn.textContent = "expand"; // keep bar label stable (bar hides in expanded)
+                applyMobileTransform();           // re-apply so rotation kicks in
             }
 
-            // Expand / collapse
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-
-                const isOn = document.body.classList.contains("drawing-expanded");
-                setExpanded(!isOn);
+                setExpanded(true);
             });
 
-            // View price (reuse your existing modal)
+            closeBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded(false);
+            });
+
             priceBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-
                 const model = computeModel();
                 openPriceModal(model);
             });
