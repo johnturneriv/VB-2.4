@@ -432,39 +432,13 @@
         }
 
         /* =========================================================
-   MOBILE DRAWING BAR (view price + expand)
-========================================================= */
-        .mobile-drawing-bar {
-            display: none;
+   MOBILE DRAWING BAR — DEFAULT (DESKTOP: HIDDEN)
+   ========================================================= */
+        #mobile-drawing-bar {
+            display: none !important;
             /* desktop hidden */
-
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-
-            z-index: 2600;
-
-            display: flex;
-            gap: 8px;
-            padding: 8px;
-
-            background: #fff;
-            border-bottom: 1px solid #eaeaea;
         }
 
-
-        .mobile-drawing-btn {
-            flex: 1;
-            height: 38px;
-            /* short to save room */
-            border-radius: 10px;
-            border: 1px solid #d1d5db;
-            background: #fff;
-            font-size: 14px;
-            cursor: pointer;
-            text-transform: lowercase;
-        }
 
         @media (max-width: 768px) {
 
@@ -509,15 +483,6 @@
    MOBILE ONLY: show drawing bar + make back/next full width
 ========================================================= */
         @media (max-width: 768px) {
-
-
-            /* show the mobile bar as a fixed strip above the drawing panel */
-            #mobile-drawing-bar {
-                display: flex;
-                bottom: 33vh;
-                /* sits right above the fixed drawing panel */
-            }
-
 
             /* hide desktop price button on mobile (we use "view price") */
             #global-nav #price-button {
@@ -660,7 +625,7 @@
                 width: 100% !important;
                 padding: 16px !important;
                 padding-bottom: 260px !important;
-                /* space for fixed drawing panel */
+                /* space for fixed drawing shell */
             }
 
             /* make fields go full width on small screens */
@@ -681,37 +646,78 @@
                 max-width: none !important;
             }
 
-            /* drawing panel pinned to bottom on mobile */
-            #drawing-panel {
+            /* =========================
+       MOBILE DRAWING SHELL
+    ========================= */
+
+            /* shell is what gets pinned */
+            #mobile-drawing-shell {
                 position: fixed;
-                bottom: 0;
                 left: 0;
                 right: 0;
+                bottom: 0;
+
+                display: flex;
+                flex-direction: column;
+
+                z-index: 2600;
+                background: #fff;
+                border-top: 1px solid #eaeaea;
+            }
+
+            /* bar sits OUTSIDE the panel, attached to its top */
+            #mobile-drawing-shell #mobile-drawing-bar {
+                display: flex !important;
+                gap: 8px;
+                padding: 8px 10px;
+                background: #fff;
+                border-bottom: 1px solid #eaeaea;
+            }
+
+
+            /* buttons */
+            #mobile-drawing-shell #mobile-drawing-bar .mobile-drawing-btn {
+                flex: 1;
+                height: 32px;
+                border-radius: 10px;
+                border: 1px solid #d1d5db;
+                background: #fff;
+                font-size: 14px;
+                cursor: pointer;
+                text-transform: lowercase;
+
+                /* prevent text cutoff */
+                font-size: clamp(11px, 3.2vw, 14px);
+                padding: 0 8px;
+                white-space: nowrap;
+            }
+
+
+            /* drawing panel keeps full height */
+            #mobile-drawing-shell #drawing-panel {
+                position: relative;
+                /* no longer fixed */
                 height: 33vh;
                 min-height: 220px;
                 margin: 0;
                 border-radius: 0;
 
                 padding: 10px;
-                padding-top: 54px;
-                /* <-- add */
-
-                z-index: 1500;
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
             }
 
-
-            /* TEMP TEST: prevent the SVG from eating swipes so the panel can scroll */
-            #drawing-panel #vanityDrawing {
+            /* svg uses full panel height */
+            #mobile-drawing-shell #drawing-panel #vanityDrawing {
                 height: 100%;
                 width: auto;
                 display: block;
+                margin-left: auto;
+                margin-right: auto;
 
                 touch-action: auto !important;
                 pointer-events: auto;
-                /* <- temporary; we'll re-enable after scroll works */
             }
 
             /* keep the mini-app hidden for now */
@@ -720,11 +726,13 @@
             }
         }
 
-
         /* close pill hidden by default (only shown in mobile expanded mode) */
         #mobile-expand-close {
             display: none !important;
         }
+
+
+
 
         /* =========================================================
    EXPANDED DRAWING MODE (mobile only)
@@ -1381,20 +1389,19 @@
             </section>
 
             <!-- drawing panel -->
-            <div id="drawing-panel">
-
-                <!-- MOBILE DRAWING BAR (mobile only) -->
+            <!-- MOBILE DRAWING SHELL (mobile only) -->
+            <div id="mobile-drawing-shell">
                 <div id="mobile-drawing-bar" class="mobile-drawing-bar">
                     <button id="mobile-price-button" class="mobile-drawing-btn">view price</button>
-                    <button id="mobile-minimize-toggle" class="mobile-drawing-btn">minimize</button>
+                    <button id="mobile-minimize-button" class="mobile-drawing-btn">minimize</button>
                     <button id="mobile-expand-button" class="mobile-drawing-btn">full screen</button>
                 </div>
 
-                <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
-                <button id="mobile-expand-close" class="mobile-expand-close">close</button>
+                <div id="drawing-panel">
+                    <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
+                    <button id="mobile-expand-close" class="mobile-expand-close">close</button>
+                </div>
             </div>
-
-
 
 
             <!-- GLOBAL NAV (desktop: includes price again) -->
@@ -5521,7 +5528,8 @@
             const RIGHT_GUTTER_PX = 14 * effectivePx;
 
             const TOP_GUTTER_PX =
-                (SINK_DIM_OFFSET_IN + 5) * effectivePx;
+                (SINK_DIM_OFFSET_IN + 7) * effectivePx;  // ⬅ extra safety space above first dim chain
+
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
@@ -7546,12 +7554,13 @@
         }
 
         function setupMobileDrawingBarHandlers() {
-            const expandBtn = document.getElementById("mobile-expand-button");       // now "full screen"
-            const toggleBtn = document.getElementById("mobile-minimize-toggle");     // minimize/expand toggle
+            const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
+            const toggleBtn = document.getElementById("mobile-minimize-button");   // ✅ matches your HTML
             const priceBtn = document.getElementById("mobile-price-button");
             const closeBtn = document.getElementById("mobile-expand-close");
 
-            if (!expandBtn || !toggleBtn || !priceBtn || !closeBtn) return;
+            // Only require the buttons that must exist to work normally
+            if (!expandBtn || !toggleBtn || !priceBtn) return;
 
             function setExpanded(on) {
                 document.body.classList.toggle("drawing-expanded", !!on);
@@ -7587,7 +7596,7 @@
                 setMinimized(!isMin);
             });
 
-            // Full screen button: ensure not minimized, then use expanded mode
+            // Full screen button: ensure not minimized, then expand
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -7596,11 +7605,14 @@
                 setExpanded(true);
             });
 
-            closeBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setExpanded(false);
-            });
+            // Close (only works if button exists in DOM)
+            if (closeBtn) {
+                closeBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExpanded(false);
+                });
+            }
 
             priceBtn.addEventListener("click", (e) => {
                 e.preventDefault();
