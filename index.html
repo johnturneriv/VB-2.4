@@ -677,77 +677,97 @@
             }
         }
 
+
+        /* close pill hidden by default (only shown in mobile expanded mode) */
+        #mobile-expand-close {
+            display: none !important;
+        }
+
         /* =========================================================
    EXPANDED DRAWING MODE (mobile only)
 ========================================================= */
         @media (max-width: 768px) {
-
-            /* lock background scrolling */
             body.drawing-expanded {
                 overflow: hidden;
             }
 
-            /* hide app UI while expanded */
-            body.drawing-expanded #page-container,
-            body.drawing-expanded #global-nav,
+            /* full screen takeover */
+            body.drawing-expanded #drawing-panel {
+                position: fixed !important;
+                inset: 0 !important;
+                z-index: 5000 !important;
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+
+                overflow: hidden !important;
+                width: 100dvw !important;
+                height: 100dvh !important;
+
+            }
+
+            /* hide the normal mobile bar while expanded */
             body.drawing-expanded #mobile-drawing-bar {
                 display: none !important;
             }
 
-            /* full-screen panel */
-            body.drawing-expanded #drawing-panel {
-                position: fixed !important;
-                inset: 0 !important;
-                z-index: 9999 !important;
-                background: #fff;
-                padding: 0 !important;
-                overflow: hidden !important;
-
-                /* center the svg container */
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
+            body.drawing-expanded #global-nav {
+                display: none !important;
             }
 
-            /* svg takes over; JS controls transform (rotate/zoom/pan) */
+
+            /* the SVG: rotate + center + start fully in view */
             body.drawing-expanded #drawing-panel #vanityDrawing {
-                width: 100vw !important;
-                height: 100vh !important;
+                position: absolute !important;
+                top: 50% !important;
+                left: 50% !important;
+
+                width: 100dvh !important;
+                height: 100dvw !important;
+
+                touch-action: none !important;
+                pointer-events: auto !important;
+
+
                 max-width: none !important;
                 max-height: none !important;
+
+                transform: translate(-50%, -50%) rotate(90deg) !important;
+                transform-origin: center center !important;
             }
 
-            /* CLOSE pill */
+            /* close pill (only visible while expanded) */
             #mobile-expand-close {
-                display: none;
+                display: none !important;
             }
 
             body.drawing-expanded #mobile-expand-close {
                 display: flex !important;
                 position: fixed !important;
-                top: 12px !important;
-                right: 12px !important;
-                left: auto !important;
-                bottom: auto !important;
-                z-index: 12000 !important;
+                top: calc(12px + env(safe-area-inset-top)) !important;
+                right: calc(12px + env(safe-area-inset-right)) !important;
+                z-index: 9000 !important;
 
-                height: 40px;
-                padding: 0 18px;
+                height: 40px !important;
+                padding: 0 18px !important;
 
-                border-radius: 999px;
-                border: 1px solid #d1d5db;
-                background: #fff;
+                border-radius: 999px !important;
+                border: 1px solid #d1d5db !important;
+                background: #fff !important;
 
-                color: #1a73e8;
-                font-size: 14px;
-                font-weight: 600;
-                text-transform: lowercase;
+                color: #1a73e8 !important;
+                font-size: 14px !important;
+                font-weight: 600 !important;
+                text-transform: lowercase !important;
 
-                align-items: center;
-                justify-content: center;
+                align-items: center !important;
+                justify-content: center !important;
             }
         }
-
 
 
         /* =========================
@@ -1772,7 +1792,8 @@
                 goToPage(nextPage);
             });
         })();
-        setupMobileNavHandlers();
+        setupMobileDrawingBarHandlers();
+
 
 
 
@@ -4321,7 +4342,8 @@
 
             const cxL = ox + legWpx;
             const cxR = ox + cabWpx - legWpx;
-            const cy = model.shelfTopY + shelfH / 2;
+            const cy = geom.shelfTopY + shelfH / 2;
+
 
             patchRectCentered(svg, cxL, cy, CROSS_THICK, shelfH);
             patchRectCentered(svg, cxR, cy, CROSS_THICK, shelfH);
@@ -6105,7 +6127,7 @@
 
             // inch-based offsets
             const off2p5Px = 1.5 * px;   // 2.5" in pixels
-            const off6Px = 5.0 * px;   // 6" in pixels (overall width)
+
 
             // --- helpers ---------------------------------------------------
             const createDimLine = (x1, y1, x2, y2) => {
@@ -7337,18 +7359,14 @@
 
             const isExpanded = document.body.classList.contains("drawing-expanded");
 
-            // In expanded mode: rotate to landscape, then apply pan/zoom
-            // IMPORTANT: rotate first, then translate/scale so gestures feel normal.
-            if (isExpanded) {
-                svg.style.transformOrigin = "center center";
-                svg.style.transform =
-                    `rotate(-90deg) translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
-            } else {
-                svg.style.transformOrigin = "center center";
-                svg.style.transform =
-                    `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
-            }
+            // 🔒 In expanded mode, CSS owns transform (center + rotate).
+            // If JS overwrites transform, the SVG often gets shoved off-screen → “white screen”.
+            if (isExpanded) return;
+
+            svg.style.transform =
+                `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
 
 
@@ -7367,7 +7385,8 @@
 
 
         function setupMobileDrawingGestures() {
-            const svg = document.getElementById("vanityDrawing");
+            const svg = document.getElementById("mobileVanityDrawing") || document.getElementById("vanityDrawing");
+
             if (!svg) return;
 
             // only enable on mobile widths
@@ -7444,10 +7463,76 @@
             });
         }
 
+        function setupMobileDrawingBarHandlers() {
+            const expandBtn = document.getElementById("mobile-expand-button");
+            const priceBtn = document.getElementById("mobile-price-button");
+            const closeBtn = document.getElementById("mobile-expand-close");
+            const svg = document.getElementById("vanityDrawing");
+
+            if (!expandBtn || !priceBtn || !closeBtn || !svg) return;
+
+            // remember any inline transform your gesture system applies
+            let savedInlineTransform = "";
+            let savedInlineTransformOrigin = "";
+
+            function setExpanded(on) {
+                document.body.classList.toggle("drawing-expanded", !!on);
+
+                if (on) {
+                    // ✅ EXPANDED MODE: let CSS control transform (rotate + center + full screen)
+                    savedInlineTransform = svg.style.transform || "";
+                    savedInlineTransformOrigin = svg.style.transformOrigin || "";
+
+                    svg.style.transform = "";
+                    svg.style.transformOrigin = "";
+
+                    // start from sane defaults for when they exit expanded
+                    mobileScale = 1;
+                    mobileTranslateX = 0;
+                    mobileTranslateY = 0;
+
+                } else {
+                    // ✅ EXIT EXPANDED: restore your gesture transform system
+                    svg.style.transform = savedInlineTransform;
+                    svg.style.transformOrigin = savedInlineTransformOrigin;
+
+                    mobileScale = 1;
+                    mobileTranslateX = 0;
+                    mobileTranslateY = 0;
+
+                    if (typeof applyMobileTransform === "function") {
+                        applyMobileTransform();
+                    }
+                }
+            }
+
+            expandBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded(true);
+            });
+
+            closeBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded(false);
+            });
+
+            priceBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const model = computeModel();
+                openPriceModal(model);
+            });
+        }
+
+
         window.addEventListener("load", () => {
             setupDrawingEngine();
             setupMobileDrawingGestures();
         });
+
+
 
 
 
