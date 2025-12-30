@@ -722,23 +722,22 @@
 
             /* the SVG: rotate + center + start fully in view */
             body.drawing-expanded #drawing-panel #vanityDrawing {
-                position: absolute !important;
-                top: 50% !important;
-                left: 50% !important;
-
-                width: 100dvh !important;
-                height: 100dvw !important;
-
-                touch-action: none !important;
-                pointer-events: auto !important;
-
+                width: 100dvw !important;
+                height: 100dvh !important;
 
                 max-width: none !important;
                 max-height: none !important;
 
-                transform: translate(-50%, -50%) rotate(90deg) !important;
-                transform-origin: center center !important;
+                display: block !important;
+
+                /* JS pan/zoom owns transform in expanded mode */
+                transform: none !important;
+                transform-origin: 0 0 !important;
+
+                touch-action: none !important;
+                pointer-events: auto !important;
             }
+
 
             /* close pill (only visible while expanded) */
             #mobile-expand-close {
@@ -7359,13 +7358,19 @@
 
             const isExpanded = document.body.classList.contains("drawing-expanded");
 
-            // 🔒 In expanded mode, CSS owns transform (center + rotate).
-            // If JS overwrites transform, the SVG often gets shoved off-screen → “white screen”.
-            if (isExpanded) return;
+            // ✅ Only apply JS pan/zoom in expanded “photo viewer” mode.
+            // Normal (non-expanded) layout is controlled by your drawing/viewBox + CSS.
+            if (!isExpanded) {
+                svg.style.transform = "";
+                svg.style.transformOrigin = "";
+                return;
+            }
 
+            svg.style.transformOrigin = "0 0";
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
 
 
@@ -7383,16 +7388,39 @@
             };
         }
 
-
         function setupMobileDrawingGestures() {
-            const svg = document.getElementById("mobileVanityDrawing") || document.getElementById("vanityDrawing");
-
+            const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
-            // only enable on mobile widths
-            if (window.innerWidth > 768) return;
-
+            // IMPORTANT: do NOT gate by window.innerWidth.
+            // Many phones exceed 768px in landscape, which kills gestures.
             let lastOneFinger = null;
+
+            function resetGestureState() {
+                lastOneFinger = null;
+                lastTouchDist = null;
+                lastTouchMid = null;
+            }
+
+            function resetViewIfExpanded() {
+                if (!document.body.classList.contains("drawing-expanded")) return;
+                mobileScale = 1;
+                mobileTranslateX = 0;
+                mobileTranslateY = 0;
+                resetGestureState();
+                applyMobileTransform();
+            }
+
+            // When the phone rotates or the viewport changes, behave like a photo viewer:
+            // keep fullscreen, reset pan/zoom to a sane default.
+            window.addEventListener("orientationchange", () => {
+                setTimeout(resetViewIfExpanded, 50);
+            });
+
+            window.addEventListener("resize", () => {
+                // some browsers fire resize instead of orientationchange
+                resetViewIfExpanded();
+            });
 
             svg.addEventListener("touchstart", (e) => {
                 if (!document.body.classList.contains("drawing-expanded")) return;
@@ -7410,7 +7438,7 @@
             svg.addEventListener("touchmove", (e) => {
                 if (!document.body.classList.contains("drawing-expanded")) return;
 
-                // 1-finger pan (expanded only)
+                // 1-finger pan
                 if (e.touches.length === 1 && lastOneFinger) {
                     e.preventDefault();
 
@@ -7462,6 +7490,7 @@
                 }
             });
         }
+
 
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");
