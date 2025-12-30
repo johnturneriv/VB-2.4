@@ -454,28 +454,24 @@
                 white-space: nowrap;
             }
 
-            body.drawing-minimized #drawing-panel {
+            /* MINIMIZED: shrink the whole shell to bar-height (removes the white gap) */
+            body.drawing-minimized #mobile-drawing-shell {
                 height: 54px !important;
-                /* buttons-only strip */
-                min-height: 54px !important;
-                padding: 0 !important;
-                border-top: 1px solid #eaeaea !important;
-                overflow: hidden !important;
             }
 
-            body.drawing-minimized #drawing-panel #vanityDrawing {
+            body.drawing-minimized #mobile-drawing-shell #drawing-panel {
                 display: none !important;
+                /* hide drawing completely */
             }
 
-            /* bar lives inside panel now, so it should just sit at the top */
-            body.drawing-minimized #mobile-drawing-bar {
-                top: 0 !important;
+            /* keep the bar visible */
+            body.drawing-minimized #mobile-drawing-shell #mobile-drawing-bar {
+                display: flex !important;
             }
 
-
-            /* give the form less “reserved space” when drawing is minimized */
+            /* form reserves only the bar height now */
             body.drawing-minimized #page-container {
-                padding-bottom: 86px !important;
+                padding-bottom: 70px !important;
             }
         }
 
@@ -656,6 +652,7 @@
                 left: 0;
                 right: 0;
                 bottom: 0;
+                height: auto;
 
                 display: flex;
                 flex-direction: column;
