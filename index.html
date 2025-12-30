@@ -407,7 +407,11 @@
             border: 1px solid #e6e8ee;
             outline: none;
 
+            width: 100%;
+            box-sizing: border-box;
         }
+
+
 
 
 
@@ -658,8 +662,12 @@
                 left: 0;
                 right: 0;
                 bottom: 0;
-                height: auto;
 
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+
+                height: auto;
                 display: flex;
                 flex-direction: column;
 
@@ -667,6 +675,7 @@
                 background: #fff;
                 border-top: 1px solid #eaeaea;
             }
+
 
             /* bar sits OUTSIDE the panel, attached to its top */
             #mobile-drawing-shell #mobile-drawing-bar {
@@ -700,20 +709,28 @@
             }
 
 
-            /* drawing panel keeps full height */
             #mobile-drawing-shell #drawing-panel {
                 position: relative;
-                /* no longer fixed */
+                width: 100%;
+                box-sizing: border-box;
+
                 height: 33vh;
                 min-height: 220px;
-                margin: 0;
-                border-radius: 0;
 
+                margin: 0;
                 padding: 10px;
+
+                border: none;
+                /* ⬅ override desktop border */
+                border-radius: 0;
+                /* ⬅ override desktop rounding */
+                background: #fff;
+
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
             }
+
 
             /* svg uses full panel height */
             #mobile-drawing-shell #drawing-panel #vanityDrawing {
