@@ -5433,7 +5433,6 @@
             const basePx = runModel.objects[0]?.model?.scale?.inchToPx;
             if (!basePx) return;
 
-
             // -------------------------------
             // 2) DETERMINE TALLEST OBJECT
             // -------------------------------
@@ -5468,15 +5467,13 @@
             // -------------------------------
             // 4) GUTTERS (NOW USING effectivePx)
             // -------------------------------
-            // sink dims go 7" ABOVE cabinet top
-            // we lock this permanently
             const SINK_DIM_OFFSET_IN = 7;
 
             const LEFT_GUTTER_PX = 10 * effectivePx;
             const RIGHT_GUTTER_PX = 14 * effectivePx;
 
             const TOP_GUTTER_PX =
-                (SINK_DIM_OFFSET_IN + 5) * effectivePx; // +3" hard safety buffer
+                (SINK_DIM_OFFSET_IN + 5) * effectivePx;
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
@@ -5511,13 +5508,25 @@
                 TOP_GUTTER_PX +
                 BOTTOM_GUTTER_PX;
 
-            svg.setAttribute(
-                "viewBox",
-                `0 0 ${totalWidth} ${totalHeight}`
-            );
+            // Keep viewBox for consistency, but ALSO set explicit pixel size so
+            // 1 viewBox unit == 1 CSS px, enabling scroll + stable scale.
+            svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
+            svg.setAttribute("width", `${Math.ceil(totalWidth)}`);
+            svg.setAttribute("height", `${Math.ceil(totalHeight)}`);
 
-            svg.removeAttribute("width");
-            svg.removeAttribute("height");
+            // -------------------------------
+            // 7) CENTER THE SCROLLER (DESKTOP + MOBILE)
+            // -------------------------------
+            const panel = document.getElementById("drawing-panel");
+            if (panel && !document.body.classList.contains("drawing-expanded")) {
+                requestAnimationFrame(() => {
+                    const maxX = Math.max(0, svg.getBoundingClientRect().width - panel.clientWidth);
+                    const maxY = Math.max(0, svg.getBoundingClientRect().height - panel.clientHeight);
+
+                    panel.scrollLeft = Math.max(0, maxX / 2);
+                    panel.scrollTop = Math.max(0, maxY / 2);
+                });
+            }
         }
 
 
