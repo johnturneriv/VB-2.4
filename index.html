@@ -7386,6 +7386,18 @@
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
 
+        // Recenter expanded drawing when the *visible* viewport changes (rotation / URL bar)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", () => {
+                if (!document.body.classList.contains("drawing-expanded")) return;
+
+                mobileScale = 1;
+                mobileTranslateX = 0;
+                mobileTranslateY = 0;
+
+                if (typeof applyMobileTransform === "function") applyMobileTransform();
+            });
+        }
 
 
         function getTouchDistance(t1, t2) {
@@ -7492,12 +7504,29 @@
                 mobileTranslateX = 0;
                 mobileTranslateY = 0;
 
-                // ✅ Expanded mode: applyMobileTransform() will center + enable gestures
-                // ✅ Non-expanded: applyMobileTransform() should clear transforms (per our latest version)
-                if (typeof applyMobileTransform === "function") {
-                    applyMobileTransform();
+                if (on) {
+                    // Best-effort fullscreen (may be blocked in iframes/iOS)
+                    const panel = document.getElementById("drawing-panel");
+                    if (panel && panel.requestFullscreen) {
+                        panel.requestFullscreen().catch(() => { });
+                    }
+
+                    // Recenter AFTER fullscreen/layout settles (URL bar / viewport changes)
+                    requestAnimationFrame(() => {
+                        if (typeof applyMobileTransform === "function") applyMobileTransform();
+                    });
+
+                } else {
+                    // Exit fullscreen if we entered it
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                        document.exitFullscreen().catch(() => { });
+                    }
+
+                    // Clear any transforms on close (your applyMobileTransform() handles this)
+                    if (typeof applyMobileTransform === "function") applyMobileTransform();
                 }
             }
+
 
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
