@@ -438,17 +438,18 @@
             display: none;
             /* desktop hidden */
 
-            position: fixed;
+            position: absolute;
+            top: 0;
             left: 0;
             right: 0;
-            bottom: calc(33vh + 0px);
-            /* will be overridden in mobile media */
+
             z-index: 2600;
 
-            gap: 10px;
-            padding: 10px;
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+
             background: #fff;
-            border-top: 1px solid #eaeaea;
             border-bottom: 1px solid #eaeaea;
         }
 
@@ -463,6 +464,45 @@
             font-size: 14px;
             cursor: pointer;
             text-transform: lowercase;
+        }
+
+        @media (max-width: 768px) {
+
+            /* 3 buttons: prevent text cutoff on small phones */
+            #mobile-drawing-bar {
+                gap: 8px;
+                padding: 8px;
+            }
+
+            .mobile-drawing-btn {
+                font-size: clamp(11px, 3.2vw, 14px);
+                padding: 0 8px;
+                white-space: nowrap;
+            }
+
+            body.drawing-minimized #drawing-panel {
+                height: 54px !important;
+                /* buttons-only strip */
+                min-height: 54px !important;
+                padding: 0 !important;
+                border-top: 1px solid #eaeaea !important;
+                overflow: hidden !important;
+            }
+
+            body.drawing-minimized #drawing-panel #vanityDrawing {
+                display: none !important;
+            }
+
+            /* bar lives inside panel now, so it should just sit at the top */
+            body.drawing-minimized #mobile-drawing-bar {
+                top: 0 !important;
+            }
+
+
+            /* give the form less “reserved space” when drawing is minimized */
+            body.drawing-minimized #page-container {
+                padding-bottom: 86px !important;
+            }
         }
 
         /* =========================================================
@@ -641,53 +681,26 @@
                 max-width: none !important;
             }
 
-            /* drawing panel pinned to bottom on mobile — now acts like a "drawer" */
+            /* drawing panel pinned to bottom on mobile */
             #drawing-panel {
                 position: fixed;
+                bottom: 0;
                 left: 0;
                 right: 0;
-                bottom: 0;
-
                 height: 33vh;
                 min-height: 220px;
-
                 margin: 0;
                 border-radius: 0;
-                background: #fff;
-
-                /* drawer slide (set by JS) */
-                transform: translateY(var(--drawerY, 0px));
-                transition: transform 180ms ease;
 
                 padding: 10px;
                 padding-top: 54px;
-                /* space for your price/expand bar above */
+                /* <-- add */
 
                 z-index: 1500;
-
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
             }
-
-            /* the grab handle (JS inserts this) */
-            #drawing-panel .drawing-drawer-handle {
-                position: absolute;
-                top: 6px;
-                left: 50%;
-                transform: translateX(-50%);
-
-                width: 64px;
-                height: 6px;
-                border-radius: 999px;
-                background: #d1d5db;
-
-                z-index: 2000;
-                touch-action: none;
-                /* we handle drag */
-            }
-
-
 
 
             /* TEMP TEST: prevent the SVG from eating swipes so the panel can scroll */
@@ -1368,21 +1381,20 @@
             </section>
 
             <!-- drawing panel -->
-            <!-- MOBILE DRAWING BAR (mobile only) -->
-            <div id="mobile-drawing-bar" class="mobile-drawing-bar">
-                <button id="mobile-price-button" class="mobile-drawing-btn">view price</button>
-                <button id="mobile-expand-button" class="mobile-drawing-btn">expand</button>
-            </div>
-
-            <!-- drawing panel -->
             <div id="drawing-panel">
-                <svg id="vanityDrawing" preserveAspectRatio="xMidYMid meet"></svg>
 
+                <!-- MOBILE DRAWING BAR (mobile only) -->
+                <div id="mobile-drawing-bar" class="mobile-drawing-bar">
+                    <button id="mobile-price-button" class="mobile-drawing-btn">view price</button>
+                    <button id="mobile-minimize-toggle" class="mobile-drawing-btn">minimize</button>
+                    <button id="mobile-expand-button" class="mobile-drawing-btn">full screen</button>
+                </div>
+
+                <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
                 <button id="mobile-expand-close" class="mobile-expand-close">close</button>
-
-
-
             </div>
+
+
 
 
             <!-- GLOBAL NAV (desktop: includes price again) -->
@@ -7534,112 +7546,13 @@
         }
 
         function setupMobileDrawingBarHandlers() {
-            const expandBtn = document.getElementById("mobile-expand-button");
+            const expandBtn = document.getElementById("mobile-expand-button");       // now "full screen"
+            const toggleBtn = document.getElementById("mobile-minimize-toggle");     // minimize/expand toggle
             const priceBtn = document.getElementById("mobile-price-button");
             const closeBtn = document.getElementById("mobile-expand-close");
-            const panel = document.getElementById("drawing-panel");
 
-            if (!expandBtn || !priceBtn || !closeBtn || !panel) return;
+            if (!expandBtn || !toggleBtn || !priceBtn || !closeBtn) return;
 
-            // -------------------------------------------------------
-            // Drawer state (only affects NON-expanded mode)
-            // -------------------------------------------------------
-            let drawerY = 0;            // px down from fully-open
-            let dragStartY = null;
-            let dragStartDrawerY = 0;
-            const HANDLE_HEIGHT_PX = 24;
-
-            // Ensure handle exists (only once)
-            let handle = panel.querySelector(".drawing-drawer-handle");
-            if (!handle) {
-                handle = document.createElement("div");
-                handle.className = "drawing-drawer-handle";
-                panel.appendChild(handle);
-            }
-
-            function setDrawerY(px) {
-                drawerY = Math.max(0, px);
-                panel.style.setProperty("--drawerY", `${drawerY}px`);
-            }
-
-            function getCollapsedY() {
-                // Collapse until only a small "handle strip" is visible
-                const h = panel.getBoundingClientRect().height || 0;
-                const collapsed = Math.max(0, h - HANDLE_HEIGHT_PX);
-                return collapsed;
-            }
-
-            function isLandscape() {
-                return window.innerWidth > window.innerHeight;
-            }
-
-            function applyAutoDrawerMode() {
-                // Don't mess with drawer while expanded
-                if (document.body.classList.contains("drawing-expanded")) return;
-
-                // On landscape: collapse by default
-                // On portrait: open by default
-                requestAnimationFrame(() => {
-                    if (isLandscape()) {
-                        setDrawerY(getCollapsedY());
-                    } else {
-                        setDrawerY(0);
-                    }
-                });
-            }
-
-            // Drag handle to open/close
-            handle.addEventListener("touchstart", (e) => {
-                if (document.body.classList.contains("drawing-expanded")) return;
-                if (!e.touches || e.touches.length !== 1) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                dragStartY = e.touches[0].clientY;
-                dragStartDrawerY = drawerY;
-            }, { passive: false });
-
-            handle.addEventListener("touchmove", (e) => {
-                if (document.body.classList.contains("drawing-expanded")) return;
-                if (dragStartY == null) return;
-                if (!e.touches || e.touches.length !== 1) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                const y = e.touches[0].clientY;
-                const delta = y - dragStartY; // positive = drag down
-                const next = dragStartDrawerY + delta;
-
-                // Clamp between fully open (0) and collapsed
-                const collapsed = getCollapsedY();
-                setDrawerY(Math.min(Math.max(0, next), collapsed));
-            }, { passive: false });
-
-            handle.addEventListener("touchend", () => {
-                if (dragStartY == null) return;
-
-                // Snap to open/collapsed depending on where you ended
-                const collapsed = getCollapsedY();
-                const snapToCollapsed = drawerY > collapsed * 0.5;
-
-                setDrawerY(snapToCollapsed ? collapsed : 0);
-
-                dragStartY = null;
-            });
-
-            // Tap handle toggles open/collapsed
-            handle.addEventListener("click", () => {
-                if (document.body.classList.contains("drawing-expanded")) return;
-                const collapsed = getCollapsedY();
-                const isCollapsedNow = drawerY > collapsed * 0.5;
-                setDrawerY(isCollapsedNow ? 0 : collapsed);
-            });
-
-            // -------------------------------------------------------
-            // Expanded mode (your existing logic)
-            // -------------------------------------------------------
             function setExpanded(on) {
                 document.body.classList.toggle("drawing-expanded", !!on);
 
@@ -7647,14 +7560,6 @@
                 mobileScale = 1;
                 mobileTranslateX = 0;
                 mobileTranslateY = 0;
-
-                // When leaving expanded, restore drawer auto behavior
-                if (!on) {
-                    applyAutoDrawerMode();
-                } else {
-                    // Expanded should always show panel fully open (drawerY=0)
-                    setDrawerY(0);
-                }
 
                 requestAnimationFrame(() => {
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
@@ -7665,9 +7570,29 @@
                 }
             }
 
+            function setMinimized(on) {
+                document.body.classList.toggle("drawing-minimized", !!on);
+                toggleBtn.textContent = on ? "expand" : "minimize";
+            }
+
+            // default state: NOT minimized
+            setMinimized(false);
+
+            // Middle button toggles hide/show
+            toggleBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isMin = document.body.classList.contains("drawing-minimized");
+                setMinimized(!isMin);
+            });
+
+            // Full screen button: ensure not minimized, then use expanded mode
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+
+                setMinimized(false);
                 setExpanded(true);
             });
 
@@ -7683,12 +7608,6 @@
                 const model = computeModel();
                 openPriceModal(model);
             });
-
-            // Auto-collapse/open on rotate / resize
-            window.addEventListener("resize", applyAutoDrawerMode);
-
-            // Initial
-            applyAutoDrawerMode();
         }
 
 
