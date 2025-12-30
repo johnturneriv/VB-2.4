@@ -453,12 +453,21 @@
         .mobile-drawing-bar {
             display: none;
             /* desktop hidden */
-            width: 100%;
+
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: calc(33vh + 0px);
+            /* will be overridden in mobile media */
+            z-index: 2600;
+
             gap: 10px;
-            margin: 0;
-            padding: 0;
-            align-items: stretch;
+            padding: 10px;
+            background: #fff;
+            border-top: 1px solid #eaeaea;
+            border-bottom: 1px solid #eaeaea;
         }
+
 
         .mobile-drawing-btn {
             flex: 1;
@@ -477,11 +486,14 @@
 ========================================================= */
         @media (max-width: 768px) {
 
-            /* show the mobile bar, attached to drawing panel top edge */
+
+            /* show the mobile bar as a fixed strip above the drawing panel */
             #mobile-drawing-bar {
                 display: flex;
-                margin: 0 0 0 0;
+                bottom: 33vh;
+                /* sits right above the fixed drawing panel */
             }
+
 
             /* hide desktop price button on mobile (we use "view price") */
             #global-nav #price-button {
@@ -669,15 +681,17 @@
                 min-height: 220px;
                 margin: 0;
                 border-radius: 0;
-                padding: 10px;
-                z-index: 1500;
 
+                padding: 10px;
+                padding-top: 54px;
+                /* <-- add */
+
+                z-index: 1500;
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
-
-                /* IMPORTANT: do NOT set touch-action here */
             }
+
 
             /* TEMP TEST: prevent the SVG from eating swipes so the panel can scroll */
             #drawing-panel #vanityDrawing {
@@ -1251,19 +1265,17 @@
             </section>
 
             <!-- drawing panel -->
-            <div id="drawing-panel">
-                <!-- MOBILE DRAWING BAR (mobile only) -->
-                <div id="mobile-drawing-bar" class="mobile-drawing-bar">
-                    <button id="mobile-price-button" class="mobile-drawing-btn">
-                        view price
-                    </button>
-                    <button id="mobile-expand-button" class="mobile-drawing-btn">
-                        expand
-                    </button>
-                </div>
+            <!-- MOBILE DRAWING BAR (mobile only) -->
+            <div id="mobile-drawing-bar" class="mobile-drawing-bar">
+                <button id="mobile-price-button" class="mobile-drawing-btn">view price</button>
+                <button id="mobile-expand-button" class="mobile-drawing-btn">expand</button>
+            </div>
 
+            <!-- drawing panel -->
+            <div id="drawing-panel">
                 <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
             </div>
+
 
             <!-- GLOBAL NAV (desktop: includes price again) -->
             <div id="global-nav" class="nav-buttons nav-split">
@@ -1419,13 +1431,21 @@
 
         function setDrawingPanelVisibility(pageId) {
             const drawingPanel = document.getElementById("drawing-panel");
+            const mobileBar = document.getElementById("mobile-drawing-bar");
             if (!drawingPanel) return;
 
             // Rule for ALL devices:
             // page1 + page2 => hide drawing
             const hide = (pageId === "page1" || pageId === "page2");
+
             drawingPanel.style.display = hide ? "none" : "block";
+
+            // Mobile bar should follow drawing visibility (mobile-only via CSS)
+            if (mobileBar) {
+                mobileBar.style.display = hide ? "none" : "";
+            }
         }
+
 
 
 
@@ -1503,6 +1523,26 @@
 
                 goToPage(nextPage);
             });
+
+            // ==========================================
+            // MOBILE DRAWING BAR BUTTONS (fixed bar)
+            // ==========================================
+            const mobilePriceBtn = document.getElementById("mobile-price-button");
+            if (mobilePriceBtn) {
+                mobilePriceBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const model = computeModel();
+                    openPriceModal(model);
+                });
+            }
+
+            const mobileExpandBtn = document.getElementById("mobile-expand-button");
+            if (mobileExpandBtn) {
+                mobileExpandBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    document.body.classList.toggle("drawing-expanded");
+                });
+            }
         }
 
 
@@ -1718,7 +1758,9 @@
             MAKEUP_DESK: 300,
             OPEN_BELOW: 100,
 
-            RETURN_SIDE: 250           // per exposed side
+            RETURN_SIDE: 250,          // per exposed side
+
+            EXTRA_DRAWER: 125          // ✅ per additional drawer (user-added)
         };
 
         function computePriceBreakdown(model) {
@@ -1754,6 +1796,62 @@
                 breakdown.extras.push({
                     label: `Interior shelf ×${interiorShelfCount}`,
                     amount: interiorShelfCount * PRICING.INTERIOR_SHELF
+                });
+            }
+
+            // -----------------------
+            // ✅ EXTRA DRAWERS (USER-ADDED)
+            // Counts drawers above the DEFAULT DRAWN count.
+            // Default drawn count = what getFinalDrawerLayoutForSection()
+            // would draw with NO override for that section.
+            // -----------------------
+            let extraDrawerCount = 0;
+
+            const sections = model.sections || [];
+            const overrides = model.sectionOverrides || {};
+
+            // opening height must match drawing dims
+            const openingHpx =
+                (typeof model.openBottomY === "number" && typeof model.openTopY === "number")
+                    ? (model.openBottomY - model.openTopY)
+                    : 0;
+
+            if (openingHpx > 0 && typeof getFinalDrawerLayoutForSection === "function") {
+                sections.forEach((sec, idx) => {
+                    if (sec.role !== "drawer") return;
+
+                    const o = overrides[idx];
+                    const hasOverride = o && typeof o.drawerCount === "number";
+
+                    // If user didn't override this section, it can't add "extra drawers"
+                    if (!hasOverride) return;
+
+                    // --- A) what is the DEFAULT actually drawn count? ---
+                    const defaultModel = { ...model, sectionOverrides: { ...overrides } };
+                    if (defaultModel.sectionOverrides[idx]) {
+                        // temporarily remove ONLY this section's drawerCount override
+                        const copy = { ...defaultModel.sectionOverrides[idx] };
+                        delete copy.drawerCount;
+                        defaultModel.sectionOverrides[idx] = copy;
+                    }
+
+                    const defaultLayout = getFinalDrawerLayoutForSection(defaultModel, idx, openingHpx);
+                    const defaultCount = Number(defaultLayout?.drawerCount) || 0;
+
+                    // --- B) what is the OVERRIDDEN actually drawn count? ---
+                    const overrideLayout = getFinalDrawerLayoutForSection(model, idx, openingHpx);
+                    const overrideCount = Number(overrideLayout?.drawerCount) || 0;
+
+                    if (overrideCount > defaultCount) {
+                        extraDrawerCount += (overrideCount - defaultCount);
+                    }
+                });
+            }
+
+            if (extraDrawerCount > 0) {
+                breakdown.extras.push({
+                    label: `Extra drawer ×${extraDrawerCount}`,
+                    amount: extraDrawerCount * PRICING.EXTRA_DRAWER
                 });
             }
 
@@ -7057,6 +7155,12 @@
                         return;
                     }
                 }
+
+                // don't treat taps on the mobile bar/buttons as "outside click"
+                if (e.target.closest("#mobile-drawing-bar")) {
+                    return;
+                }
+
 
                 // --- clear section selection when clicking outside hit targets ---
                 if (
