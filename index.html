@@ -730,10 +730,6 @@
 
                 display: block !important;
 
-                /* JS pan/zoom owns transform in expanded mode */
-                transform: none !important;
-                transform-origin: 0 0 !important;
-
                 touch-action: none !important;
                 pointer-events: auto !important;
             }
@@ -7354,30 +7350,41 @@
                 return;
             }
 
-            // Expanded: JS owns pan/zoom.
-            // If we’re at the default state, auto-center the viewBox in the current viewport.
+            const rect = svg.getBoundingClientRect();
+
+            const vb = (svg.viewBox && svg.viewBox.baseVal) ? svg.viewBox.baseVal : null;
+            if (!vb || !vb.width || !vb.height || !rect.width || !rect.height) return;
+
+            // Convert SVG user units -> screen px for this element size
+            const uxToPx = rect.width / vb.width;
+            const uyToPx = rect.height / vb.height;
+
+            // Use the actual drawn content bounds (not the whole viewBox)
+            let bb;
+            try {
+                bb = svg.getBBox();
+            } catch (e) {
+                bb = null;
+            }
+            if (!bb || !bb.width || !bb.height) return;
+
+            // Auto-center ONLY when at default state
             if (mobileScale === 1 && mobileTranslateX === 0 && mobileTranslateY === 0) {
-                const rect = svg.getBoundingClientRect();
+                const contentWpx = bb.width * uxToPx * mobileScale;
+                const contentHpx = bb.height * uyToPx * mobileScale;
 
-                // Read current viewBox size
-                const vb = svg.viewBox && svg.viewBox.baseVal
-                    ? svg.viewBox.baseVal
-                    : null;
+                // Also offset by content origin so (bb.x, bb.y) ends up centered
+                const contentLeftPx = bb.x * uxToPx * mobileScale;
+                const contentTopPx = bb.y * uyToPx * mobileScale;
 
-                if (vb && vb.width && vb.height && rect.width && rect.height) {
-                    const scaledW = vb.width * mobileScale;
-                    const scaledH = vb.height * mobileScale;
-
-                    mobileTranslateX = (rect.width - scaledW) / 2;
-                    mobileTranslateY = (rect.height - scaledH) / 2;
-                }
+                mobileTranslateX = (rect.width - contentWpx) / 2 - contentLeftPx;
+                mobileTranslateY = (rect.height - contentHpx) / 2 - contentTopPx;
             }
 
             svg.style.transformOrigin = "0 0";
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
-
 
 
 
