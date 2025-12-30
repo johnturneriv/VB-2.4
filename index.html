@@ -682,103 +682,144 @@
 ========================================================= */
         @media (max-width: 768px) {
 
-            /* full-screen takeover */
+            /* lock scrolling */
             body.drawing-expanded {
                 overflow: hidden;
             }
 
+            /* full screen panel */
             body.drawing-expanded #drawing-panel {
                 position: fixed !important;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-
-                height: 100vh !important;
-                min-height: 0 !important;
-
+                inset: 0;
                 z-index: 5000;
-                padding: 12px;
                 background: #fff;
+
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                padding: 0;
+                overflow: hidden;
             }
 
-            /* hide the entire bar in expanded mode */
+            /* rotate + auto-fit drawing like a photo */
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                position: absolute !important;
+                top: 50%;
+                left: 50%;
+
+                width: 100vh;
+                height: 100vw;
+
+                max-width: none !important;
+                max-height: none !important;
+
+                transform: translate(-50%, -50%) rotate(90deg) !important;
+                transform-origin: center center !important;
+            }
+
+            /* hide mobile bar while expanded */
             body.drawing-expanded #mobile-drawing-bar {
                 display: none !important;
             }
 
-            #mobile-expand-close {
+            /* CLOSE pill */
+            .mobile-expand-close {
                 display: none;
             }
 
-            body.drawing-expanded #mobile-expand-close {
-                display: flex !important;
-                align-items: center;
-                justify-content: center;
-
-                position: fixed !important;
+            body.drawing-expanded .mobile-expand-close {
+                display: flex;
+                position: fixed;
                 top: 12px;
                 right: 12px;
-                z-index: 7000;
+                z-index: 9000;
 
                 height: 40px;
-                padding: 0 16px;
+                padding: 0 18px;
 
                 border-radius: 999px;
                 border: 1px solid #d1d5db;
                 background: #fff;
 
+                color: #1a73e8;
                 font-size: 14px;
                 font-weight: 600;
                 text-transform: lowercase;
-            }
 
-
-            /* center the rotated svg and prevent scrollbars */
-            body.drawing-expanded #drawing-panel {
-                display: flex;
                 align-items: center;
                 justify-content: center;
-                overflow: hidden;
             }
 
-            /* landscape rotation */
-            body.drawing-expanded #drawing-panel #vanityDrawing {
-                width: 100vh !important;
-                /* swapped */
-                height: 100vw !important;
-                /* swapped */
-                max-height: none !important;
-                transform-origin: center center;
-            }
-
-
-
-            /* turn the expand button into the close "X" */
-            body.drawing-expanded #mobile-expand-button {
-                position: fixed !important;
-                top: 10px;
-                right: 10px;
-                z-index: 6000;
-
-                width: 44px;
-                height: 44px;
-                border-radius: 999px;
-                font-size: 22px;
-                line-height: 1;
-                padding: 0;
-            }
-
-            /* make sure the drawing itself fills the screen height */
-            body.drawing-expanded #drawing-panel #vanityDrawing {
-                height: 100% !important;
-                max-height: none !important;
-            }
-
-            /* prevent extra space being reserved for the “pinned” panel layout */
+            /* reclaim page space */
             body.drawing-expanded #page-container {
                 padding-bottom: 0 !important;
             }
+        }
+
+
+        /* center the rotated svg and prevent scrollbars */
+        body.drawing-expanded #drawing-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* landscape rotation */
+        @media (max-width: 768px) {
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                position: absolute !important;
+                top: 50% !important;
+                left: 50% !important;
+
+                width: 100vh !important;
+                /* swapped because we rotate */
+                height: 100vw !important;
+
+                max-height: none !important;
+                max-width: none !important;
+
+                /* 🔒 override any inline transform from JS so it starts “fit + centered” */
+                transform: translate(-50%, -50%) rotate(90deg) !important;
+                transform-origin: center center !important;
+            }
+
+            /* make the panel a positioning context */
+            body.drawing-expanded #drawing-panel {
+                position: fixed !important;
+                overflow: hidden !important;
+            }
+        }
+
+
+
+
+        /* turn the expand button into the close "X" */
+        body.drawing-expanded #mobile-expand-button {
+            position: fixed !important;
+            top: 10px;
+            right: 10px;
+            z-index: 6000;
+
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            font-size: 22px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        /* make sure the drawing itself fills the screen height */
+        body.drawing-expanded #drawing-panel #vanityDrawing {
+            height: 100% !important;
+            max-height: none !important;
+        }
+
+        /* prevent extra space being reserved for the “pinned” panel layout */
+        body.drawing-expanded #page-container {
+            padding-bottom: 0 !important;
+        }
         }
 
         /* =========================
@@ -1572,7 +1613,6 @@
         function setupMobileNavHandlers() {
             // ----------------------------
             // Optional: mobile back/next
-            // (only if those buttons exist)
             // ----------------------------
             const backBtn = document.getElementById("mobile-back");
             const nextBtn = document.getElementById("mobile-next");
@@ -1613,39 +1653,48 @@
             const mobilePriceBtn = document.getElementById("mobile-price-button");
             if (mobilePriceBtn) {
                 mobilePriceBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     const model = computeModel();
                     openPriceModal(model);
                 });
             }
 
-            const mobileExpandBtn = document.getElementById("mobile-expand-button");
-            if (mobileExpandBtn) {
-                const setExpandBtnLabel = () => {
-                    const expanded = document.body.classList.contains("drawing-expanded");
-                    mobileExpandBtn.textContent = expanded ? "×" : "expand";
-                };
+            const expandBtn = document.getElementById("mobile-expand-button");
+            const closeBtn = document.getElementById("mobile-expand-close");
 
-                // initial label
-                setExpandBtnLabel();
+            function setExpanded(on) {
+                document.body.classList.toggle("drawing-expanded", !!on);
 
-                mobileExpandBtn.addEventListener("click", (e) => {
+                // When OPENING expanded, reset pan/zoom so it starts centered + sane
+                if (on) {
+                    mobileScale = 1;
+                    mobileTranslateX = 0;
+                    mobileTranslateY = 0;
+                }
+
+                applyMobileTransform();
+            }
+
+            if (expandBtn) {
+                // keep label stable (bar hides in expanded mode anyway)
+                expandBtn.textContent = "expand";
+
+                expandBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
+                    setExpanded(true);
+                });
+            }
 
-                    document.body.classList.toggle("drawing-expanded");
-                    setExpandBtnLabel();
-
-                    // reset transform when toggling (prevents “lost in space”)
-                    if (!document.body.classList.contains("drawing-expanded")) {
-                        mobileScale = 1;
-                        mobileTranslateX = 0;
-                        mobileTranslateY = 0;
-                    }
-                    applyMobileTransform();
+            if (closeBtn) {
+                closeBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExpanded(false);
                 });
             }
         }
-
 
         // =======================================================
         // INITIAL PRICE VISIBILITY (run once on page load)
@@ -1743,28 +1792,6 @@
 
             // hide back button only on page1
             backBtn.style.visibility = (pageId === "page1") ? "hidden" : "visible";
-        }
-
-
-        function setupMobileDrawingToolbar() {
-            const mobilePriceBtn = document.getElementById("mobile-price-button");
-            const mobileExpandBtn = document.getElementById("mobile-expand-button");
-            if (!mobilePriceBtn || !mobileExpandBtn) return;
-
-            // view price (mobile)
-            mobilePriceBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const model = computeModel();
-                openPriceModal(model);
-            });
-
-            // expand / collapse (mobile)
-            mobileExpandBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-
-                const isExpanded = document.body.classList.toggle("drawing-expanded");
-                mobileExpandBtn.textContent = isExpanded ? "collapse" : "expand";
-            });
         }
 
 
@@ -7383,39 +7410,6 @@
                 x: (t1.clientX + t2.clientX) / 2,
                 y: (t1.clientY + t2.clientY) / 2
             };
-        }
-
-        function setupMobileDrawingBarHandlers() {
-            const expandBtn = document.getElementById("mobile-expand-button");
-            const priceBtn = document.getElementById("mobile-price-button");
-            const closeBtn = document.getElementById("mobile-expand-close");
-            if (!expandBtn || !priceBtn || !closeBtn) return;
-
-            function setExpanded(on) {
-                document.body.classList.toggle("drawing-expanded", !!on);
-                closeBtn.style.display = on ? "block" : "none";
-                expandBtn.textContent = "expand"; // keep bar label stable (bar hides in expanded)
-                applyMobileTransform();           // re-apply so rotation kicks in
-            }
-
-            expandBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setExpanded(true);
-            });
-
-            closeBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setExpanded(false);
-            });
-
-            priceBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const model = computeModel();
-                openPriceModal(model);
-            });
         }
 
 
