@@ -1627,18 +1627,6 @@
             const expandBtn = document.getElementById("mobile-expand-button");
             const closeBtn = document.getElementById("mobile-expand-close");
 
-            function setExpanded(on) {
-                document.body.classList.toggle("drawing-expanded", !!on);
-
-                // When OPENING expanded, reset pan/zoom so it starts centered + sane
-                if (on) {
-                    mobileScale = 1;
-                    mobileTranslateX = 0;
-                    mobileTranslateY = 0;
-                }
-
-                applyMobileTransform();
-            }
 
             if (expandBtn) {
                 // keep label stable (bar hides in expanded mode anyway)
@@ -7352,25 +7340,43 @@
         let lastTouchDist = null;
         let lastTouchMid = null;
 
+
         function applyMobileTransform() {
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
             const isExpanded = document.body.classList.contains("drawing-expanded");
 
-            // ✅ Only apply JS pan/zoom in expanded “photo viewer” mode.
-            // Normal (non-expanded) layout is controlled by your drawing/viewBox + CSS.
+            // Non-expanded: no JS transforms (drawing/viewBox handles layout)
             if (!isExpanded) {
                 svg.style.transform = "";
                 svg.style.transformOrigin = "";
                 return;
             }
 
+            // Expanded: JS owns pan/zoom.
+            // If we’re at the default state, auto-center the viewBox in the current viewport.
+            if (mobileScale === 1 && mobileTranslateX === 0 && mobileTranslateY === 0) {
+                const rect = svg.getBoundingClientRect();
+
+                // Read current viewBox size
+                const vb = svg.viewBox && svg.viewBox.baseVal
+                    ? svg.viewBox.baseVal
+                    : null;
+
+                if (vb && vb.width && vb.height && rect.width && rect.height) {
+                    const scaledW = vb.width * mobileScale;
+                    const scaledH = vb.height * mobileScale;
+
+                    mobileTranslateX = (rect.width - scaledW) / 2;
+                    mobileTranslateY = (rect.height - scaledH) / 2;
+                }
+            }
+
             svg.style.transformOrigin = "0 0";
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
-
 
 
 
@@ -7392,35 +7398,7 @@
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
-            // IMPORTANT: do NOT gate by window.innerWidth.
-            // Many phones exceed 768px in landscape, which kills gestures.
             let lastOneFinger = null;
-
-            function resetGestureState() {
-                lastOneFinger = null;
-                lastTouchDist = null;
-                lastTouchMid = null;
-            }
-
-            function resetViewIfExpanded() {
-                if (!document.body.classList.contains("drawing-expanded")) return;
-                mobileScale = 1;
-                mobileTranslateX = 0;
-                mobileTranslateY = 0;
-                resetGestureState();
-                applyMobileTransform();
-            }
-
-            // When the phone rotates or the viewport changes, behave like a photo viewer:
-            // keep fullscreen, reset pan/zoom to a sane default.
-            window.addEventListener("orientationchange", () => {
-                setTimeout(resetViewIfExpanded, 50);
-            });
-
-            window.addEventListener("resize", () => {
-                // some browsers fire resize instead of orientationchange
-                resetViewIfExpanded();
-            });
 
             svg.addEventListener("touchstart", (e) => {
                 if (!document.body.classList.contains("drawing-expanded")) return;
@@ -7496,42 +7474,21 @@
             const expandBtn = document.getElementById("mobile-expand-button");
             const priceBtn = document.getElementById("mobile-price-button");
             const closeBtn = document.getElementById("mobile-expand-close");
-            const svg = document.getElementById("vanityDrawing");
 
-            if (!expandBtn || !priceBtn || !closeBtn || !svg) return;
-
-            // remember any inline transform your gesture system applies
-            let savedInlineTransform = "";
-            let savedInlineTransformOrigin = "";
+            if (!expandBtn || !priceBtn || !closeBtn) return;
 
             function setExpanded(on) {
                 document.body.classList.toggle("drawing-expanded", !!on);
 
-                if (on) {
-                    // ✅ EXPANDED MODE: let CSS control transform (rotate + center + full screen)
-                    savedInlineTransform = svg.style.transform || "";
-                    savedInlineTransformOrigin = svg.style.transformOrigin || "";
+                // Reset pan/zoom every time you enter/exit expanded
+                mobileScale = 1;
+                mobileTranslateX = 0;
+                mobileTranslateY = 0;
 
-                    svg.style.transform = "";
-                    svg.style.transformOrigin = "";
-
-                    // start from sane defaults for when they exit expanded
-                    mobileScale = 1;
-                    mobileTranslateX = 0;
-                    mobileTranslateY = 0;
-
-                } else {
-                    // ✅ EXIT EXPANDED: restore your gesture transform system
-                    svg.style.transform = savedInlineTransform;
-                    svg.style.transformOrigin = savedInlineTransformOrigin;
-
-                    mobileScale = 1;
-                    mobileTranslateX = 0;
-                    mobileTranslateY = 0;
-
-                    if (typeof applyMobileTransform === "function") {
-                        applyMobileTransform();
-                    }
+                // ✅ Expanded mode: applyMobileTransform() will center + enable gestures
+                // ✅ Non-expanded: applyMobileTransform() should clear transforms (per our latest version)
+                if (typeof applyMobileTransform === "function") {
+                    applyMobileTransform();
                 }
             }
 
