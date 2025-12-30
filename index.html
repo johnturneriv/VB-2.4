@@ -1827,7 +1827,8 @@
                 goToPage(nextPage);
             });
         })();
-        setupMobileDrawingToolbar();
+        setupMobileNavHandlers();
+
 
 
         /* ======================================================================= */
@@ -7475,8 +7476,6 @@
 
         window.addEventListener("load", () => {
             setupDrawingEngine();
-            setupMobileNavHandlers();
-            setupMobileDrawingBarHandlers();   // ✅ add this
             setupMobileDrawingGestures();
         });
 
