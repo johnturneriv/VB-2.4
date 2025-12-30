@@ -448,6 +448,83 @@
         }
 
         /* =========================================================
+   MOBILE DRAWING BAR (view price + expand)
+========================================================= */
+        .mobile-drawing-bar {
+            display: none;
+            /* desktop hidden */
+            width: 100%;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+            align-items: stretch;
+        }
+
+        .mobile-drawing-btn {
+            flex: 1;
+            height: 38px;
+            /* short to save room */
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: lowercase;
+        }
+
+        /* =========================================================
+   MOBILE ONLY: show drawing bar + make back/next full width
+========================================================= */
+        @media (max-width: 768px) {
+
+            /* show the mobile bar, attached to drawing panel top edge */
+            #mobile-drawing-bar {
+                display: flex;
+                margin: 0 0 0 0;
+            }
+
+            /* hide desktop price button on mobile (we use "view price") */
+            #global-nav #price-button {
+                display: none !important;
+            }
+
+            /* make global back/next full width + equal size */
+            #global-nav {
+                gap: 10px;
+            }
+
+            #global-nav .nav-left,
+            #global-nav .nav-right {
+                flex: 1;
+            }
+
+            #global-nav .nav-left button,
+            #global-nav .nav-right button {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+        }
+
+        /* =========================================================
+   EXPANDED DRAWING MODE (mobile only)
+========================================================= */
+        @media (max-width: 768px) {
+
+            body.drawing-expanded #drawing-panel {
+                height: 78vh !important;
+                /* big view */
+                min-height: 0 !important;
+            }
+
+            body.drawing-expanded #page-container {
+                padding-bottom: 0 !important;
+                /* reclaim space */
+            }
+        }
+
+
+        /* =========================================================
    MOBILE MINI-APP (kept hidden for now)
 ========================================================= */
         #mobile-app.hidden {
@@ -1175,25 +1252,35 @@
 
             <!-- drawing panel -->
             <div id="drawing-panel">
-                <!-- pinned price button INSIDE the drawing panel -->
-                <button id="price-button" class="price-button drawing-price">
-                    current price:
-                    <span id="price-value" class="price-value">$0</span>
-                </button>
+                <!-- MOBILE DRAWING BAR (mobile only) -->
+                <div id="mobile-drawing-bar" class="mobile-drawing-bar">
+                    <button id="mobile-price-button" class="mobile-drawing-btn">
+                        view price
+                    </button>
+                    <button id="mobile-expand-button" class="mobile-drawing-btn">
+                        expand
+                    </button>
+                </div>
 
                 <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
             </div>
 
-            <!-- GLOBAL NAV (no price button here anymore) -->
+            <!-- GLOBAL NAV (desktop: includes price again) -->
             <div id="global-nav" class="nav-buttons nav-split">
                 <div class="nav-left">
                     <button id="global-back" class="back">back</button>
                 </div>
 
                 <div class="nav-right">
+                    <button id="price-button" class="price-button">
+                        current price:
+                        <span id="price-value" class="price-value">$0</span>
+                    </button>
+
                     <button id="global-next" class="next">next</button>
                 </div>
             </div>
+
 
 
 
@@ -1223,9 +1310,11 @@
     <script>
         var currentPageIndex = 0;
 
+        let drawingEngineInitialized = false;
+        let railsModeBeforeStilesOff = "none";
 
         let initialDrawDone = false;
-        let railsModeBeforeStilesOff = null;
+
 
         // =====================================================
         // SECTION SELECTION STATE (authoritative)
@@ -1347,25 +1436,6 @@
             });
         });
 
-        function updateGlobalNavVisibility(pageId) {
-            const backBtn = document.getElementById("global-back");
-            const priceBtn = document.getElementById("price-button");
-
-            const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
-            if (backBtn) {
-                const hideBack = (pageId === "page1"); // no back on page1
-                backBtn.style.display = hideBack ? "none" : "";
-                backBtn.disabled = hideBack;
-                if (hideBack) backBtn.textContent = "back";
-            }
-
-
-            if (priceBtn) {
-                priceBtn.style.display =
-                    (pageId === "page1" || pageId === "page2") ? "none" : "";
-            }
-        }
 
 
         /* ======================================================================= */
@@ -1396,14 +1466,10 @@
             const idx = pagesArr.findIndex(p => p.id === pageId);
             currentPageIndex = idx >= 0 ? idx : 0;
 
-            updateGlobalNavVisibility(pageId);
-            updatePriceVisibility(pageId);
-            setDrawingPanelVisibility(pageId);
             updateDrawing();
             syncGlobalNavState();
+            syncUIState(pageId);
 
-            // 🔑 MOBILE MUST MIRROR DESKTOP AFTER STATE CHANGE
-            updateMobileDrawingVisibility();
 
         }
 
@@ -1505,6 +1571,61 @@
             }
         }
 
+        function syncUIState(pageId) {
+            // global nav
+            if (typeof updateGlobalNavVisibility === "function") {
+                updateGlobalNavVisibility(pageId);
+            }
+
+            // drawing panel (desktop)
+            if (typeof setDrawingPanelVisibility === "function") {
+                setDrawingPanelVisibility(pageId);
+            }
+
+            // mobile drawing visibility
+            if (typeof updateMobileDrawingVisibility === "function") {
+                updateMobileDrawingVisibility();
+            }
+            // hide price button on page1 + page2 (desktop)
+            const priceBtn = document.getElementById("price-button");
+            if (priceBtn) {
+                const hide = (pageId === "page1" || pageId === "page2");
+                priceBtn.style.display = hide ? "none" : "block";
+            }
+
+        }
+
+
+        function updateGlobalNavVisibility(pageId) {
+            const backBtn = document.getElementById("global-back");
+            if (!backBtn) return;
+
+            // hide back button only on page1
+            backBtn.style.visibility = (pageId === "page1") ? "hidden" : "visible";
+        }
+
+
+        function setupMobileDrawingToolbar() {
+            const mobilePriceBtn = document.getElementById("mobile-price-button");
+            const mobileExpandBtn = document.getElementById("mobile-expand-button");
+            if (!mobilePriceBtn || !mobileExpandBtn) return;
+
+            // view price (mobile)
+            mobilePriceBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const model = computeModel();
+                openPriceModal(model);
+            });
+
+            // expand / collapse (mobile)
+            mobileExpandBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+
+                const isExpanded = document.body.classList.toggle("drawing-expanded");
+                mobileExpandBtn.textContent = isExpanded ? "collapse" : "expand";
+            });
+        }
+
 
         // hook up the bottom nav buttons
         (function attachGlobalNavHandlers() {
@@ -1538,6 +1659,8 @@
                 goToPage(nextPage);
             });
         })();
+        setupMobileDrawingToolbar();
+
 
         /* ======================================================================= */
         /* === SECTION: MOBILE MODE DETECTION                                   === */
@@ -5009,6 +5132,8 @@
         let _drawPending = false;
 
         function updateDrawing() {
+            if (!initialDrawDone) return;
+
             if (_drawPending) return;
             _drawPending = true;
 
@@ -5468,40 +5593,6 @@
             });
         }
 
-        // --- 1/16" fraction formatter (local to sink dims) ---
-        function formatInchesFraction(val) {
-            const negative = val < 0;
-            let v = Math.abs(val);
-
-            let sixteenths = Math.round(v * 16);
-            const whole = Math.floor(sixteenths / 16);
-            let rem = sixteenths % 16;
-
-            if (rem === 0) {
-                const base = String(whole);
-                return negative ? "-" + base : base;
-            }
-
-            function gcd(a, b) {
-                while (b !== 0) {
-                    const t = a % b;
-                    a = b;
-                    b = t;
-                }
-                return a;
-            }
-
-            let denom = 16;
-            const g = gcd(rem, denom);
-            rem /= g;
-            denom /= g;
-
-            const frac = `${rem}/${denom}`;
-            let result = whole === 0 ? frac : `${whole} ${frac}`;
-            return negative ? "-" + result : result;
-        }
-
-
         function drawSinkDimensions(svg, model) {
             const { sections = [], sinkCount = 0, scale, widthIn } = model;
             if (!sections.length || !sinkCount || !scale || !widthIn) return;
@@ -5868,50 +5959,6 @@
                 t.textContent = text;
                 svg.appendChild(t);
             };
-
-
-            // round to nearest 1/16" and format as fraction
-            function formatInchesFraction(val) {
-                const negative = val < 0;
-                let v = Math.abs(val);
-
-                // nearest 1/16
-                let sixteenths = Math.round(v * 16); // integer
-                const whole = Math.floor(sixteenths / 16);
-                let rem = sixteenths % 16;
-
-                if (rem === 0) {
-                    // pure whole number
-                    const base = String(whole);
-                    return negative ? "-" + base : base;
-                }
-
-                // reduce fraction rem/16
-                function gcd(a, b) {
-                    while (b !== 0) {
-                        const t = a % b;
-                        a = b;
-                        b = t;
-                    }
-                    return a;
-                }
-
-                let denom = 16;
-                const g = gcd(rem, denom);
-                rem /= g;
-                denom /= g;
-
-                const frac = `${rem}/${denom}`;
-                let result;
-                if (whole === 0) {
-                    result = frac;
-                } else {
-                    // e.g. 26 3/16
-                    result = `${whole} ${frac}`;
-                }
-
-                return negative ? "-" + result : result;
-            }
 
             // dashed vertical tick centered on dim line
             const createVerticalTick = (x, dimY) => {
@@ -6508,16 +6555,13 @@
             const price = computeCurrentPrice(model);
             const formatted = `$${price.toLocaleString()}`;
 
-            const breakdownValue = document.getElementById("currentPrice");
-            if (breakdownValue) {
-                breakdownValue.textContent = formatted;
-            }
-
+            // pinned drawing price
             const priceValue = document.getElementById("price-value");
             if (priceValue) {
                 priceValue.textContent = formatted;
             }
         }
+
 
         function openPriceModal(model) {
             const modal = document.getElementById("price-modal");
@@ -6571,9 +6615,45 @@
             heightField.style.display = on ? "block" : "none";
         }
 
+        function formatInchesFraction(val) {
+            const negative = val < 0;
+            let v = Math.abs(val);
+
+            let sixteenths = Math.round(v * 16);
+            const whole = Math.floor(sixteenths / 16);
+            let rem = sixteenths % 16;
+
+            if (rem === 0) {
+                const base = String(whole);
+                return negative ? "-" + base : base;
+            }
+
+            function gcd(a, b) {
+                while (b !== 0) {
+                    const t = a % b;
+                    a = b;
+                    b = t;
+                }
+                return a;
+            }
+
+            let denom = 16;
+            const g = gcd(rem, denom);
+            rem /= g;
+            denom /= g;
+
+            const frac = `${rem}/${denom}`;
+            const result = whole === 0 ? frac : `${whole} ${frac}`;
+            return negative ? "-" + result : result;
+        }
+
 
         function setupDrawingEngine() {
             ensureSvgSetup();
+
+            if (drawingEngineInitialized) return;
+            drawingEngineInitialized = true;
+
 
             // =====================================================
             // 1) APPLY ALL DEFAULT VALUES BEFORE ANYTHING ELSE
@@ -6946,8 +7026,13 @@
                     updateDrawing();
                 };
 
-                el.addEventListener("input", handler);
-                el.addEventListener("change", handler);
+                const useChangeOnly = (
+                    el.tagName === "SELECT" ||
+                    el.type === "checkbox"
+                );
+
+                el.addEventListener(useChangeOnly ? "change" : "input", handler);
+
             });
 
 
@@ -6974,10 +7059,14 @@
                 }
 
                 // --- clear section selection when clicking outside hit targets ---
-                if (selectedSectionIndex !== null) {
+                if (
+                    selectedSectionIndex !== null &&
+                    !e.target.closest("input, select, button, label")
+                ) {
                     selectedSectionIndex = null;
                     updateDrawing();
                 }
+
             });
 
 
@@ -6989,14 +7078,7 @@
             initialDrawDone = true;
             updateDrawing();
             syncGlobalNavState();
-
-            // 🔑 FORCE nav visibility for initial page
-            updateGlobalNavVisibility("page1");
-            setDrawingPanelVisibility("page1");
-            updateMobileDrawingVisibility();
-
-
-
+            syncUIState("page1");
 
 
         }
