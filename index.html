@@ -407,6 +407,23 @@
             overflow-y: hidden;
         }
 
+        /* pin price button inside drawing panel */
+        #drawing-panel {
+            position: relative;
+            /* anchor for absolute button */
+        }
+
+        #drawing-panel .drawing-price {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 5000;
+            border-radius: 999px;
+            /* pill */
+            padding: 8px 12px;
+        }
+
+
         #drawing-panel::before {
             content: "DESKTOP DRAWING PANEL";
             display: block;
@@ -601,6 +618,25 @@
             }
         }
 
+        /* =========================
+   MOBILE: PIN GLOBAL NAV
+========================= */
+        @media (max-width: 768px) {
+            #global-nav {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 2500;
+                background: #fff;
+                border-bottom: 1px solid #eaeaea;
+            }
+
+            /* push content below fixed nav */
+            #page-container {
+                padding-top: 84px !important;
+            }
+        }
 
 
 
@@ -1143,27 +1179,27 @@
                 </div>
             </section>
 
-            <!-- drawing placeholder (no drawing logic yet) -->
+            <!-- drawing panel -->
             <div id="drawing-panel">
+                <!-- pinned price button INSIDE the drawing panel -->
+                <button id="price-button" class="price-button drawing-price">
+                    current price:
+                    <span id="price-value" class="price-value">$0</span>
+                </button>
+
                 <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
             </div>
-            <!-- GLOBAL NAV BELOW DRAWING -->
+
+            <!-- GLOBAL NAV (no price button here anymore) -->
             <div id="global-nav" class="nav-buttons nav-split">
                 <div class="nav-left">
                     <button id="global-back" class="back">back</button>
                 </div>
 
                 <div class="nav-right">
-                    <button id="price-button" class="price-button">
-                        current price:
-                        <span id="price-value" class="price-value">$0</span>
-                    </button>
-
-
                     <button id="global-next" class="next">next</button>
                 </div>
             </div>
-
 
 
 
