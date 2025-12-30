@@ -682,58 +682,54 @@
 ========================================================= */
         @media (max-width: 768px) {
 
-            /* lock scrolling */
+            /* lock background scrolling */
             body.drawing-expanded {
                 overflow: hidden;
             }
 
-            /* full screen panel */
-            body.drawing-expanded #drawing-panel {
-                position: fixed !important;
-                inset: 0;
-                z-index: 5000;
-                background: #fff;
-
-                display: flex;
-                align-items: center;
-                justify-content: center;
-
-                padding: 0;
-                overflow: hidden;
-            }
-
-            /* rotate + auto-fit drawing like a photo */
-            body.drawing-expanded #drawing-panel #vanityDrawing {
-                position: absolute !important;
-                top: 50%;
-                left: 50%;
-
-                width: 100vh;
-                height: 100vw;
-
-                max-width: none !important;
-                max-height: none !important;
-
-                transform: translate(-50%, -50%) rotate(90deg) !important;
-                transform-origin: center center !important;
-            }
-
-            /* hide mobile bar while expanded */
+            /* hide app UI while expanded */
+            body.drawing-expanded #page-container,
+            body.drawing-expanded #global-nav,
             body.drawing-expanded #mobile-drawing-bar {
                 display: none !important;
             }
 
+            /* full-screen panel */
+            body.drawing-expanded #drawing-panel {
+                position: fixed !important;
+                inset: 0 !important;
+                z-index: 9999 !important;
+                background: #fff;
+                padding: 0 !important;
+                overflow: hidden !important;
+
+                /* center the svg container */
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            /* svg takes over; JS controls transform (rotate/zoom/pan) */
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: none !important;
+                max-height: none !important;
+            }
+
             /* CLOSE pill */
-            .mobile-expand-close {
+            #mobile-expand-close {
                 display: none;
             }
 
-            body.drawing-expanded .mobile-expand-close {
-                display: flex;
-                position: fixed;
-                top: 12px;
-                right: 12px;
-                z-index: 9000;
+            body.drawing-expanded #mobile-expand-close {
+                display: flex !important;
+                position: fixed !important;
+                top: 12px !important;
+                right: 12px !important;
+                left: auto !important;
+                bottom: auto !important;
+                z-index: 12000 !important;
 
                 height: 40px;
                 padding: 0 18px;
@@ -750,76 +746,8 @@
                 align-items: center;
                 justify-content: center;
             }
-
-            /* reclaim page space */
-            body.drawing-expanded #page-container {
-                padding-bottom: 0 !important;
-            }
         }
 
-
-        /* center the rotated svg and prevent scrollbars */
-        body.drawing-expanded #drawing-panel {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* landscape rotation */
-        @media (max-width: 768px) {
-            body.drawing-expanded #drawing-panel #vanityDrawing {
-                position: absolute !important;
-                top: 50% !important;
-                left: 50% !important;
-
-                width: 100vh !important;
-                /* swapped because we rotate */
-                height: 100vw !important;
-
-                max-height: none !important;
-                max-width: none !important;
-
-                /* 🔒 override any inline transform from JS so it starts “fit + centered” */
-                transform: translate(-50%, -50%) rotate(90deg) !important;
-                transform-origin: center center !important;
-            }
-
-            /* make the panel a positioning context */
-            body.drawing-expanded #drawing-panel {
-                position: fixed !important;
-                overflow: hidden !important;
-            }
-        }
-
-
-
-
-        /* turn the expand button into the close "X" */
-        body.drawing-expanded #mobile-expand-button {
-            position: fixed !important;
-            top: 10px;
-            right: 10px;
-            z-index: 6000;
-
-            width: 44px;
-            height: 44px;
-            border-radius: 999px;
-            font-size: 22px;
-            line-height: 1;
-            padding: 0;
-        }
-
-        /* make sure the drawing itself fills the screen height */
-        body.drawing-expanded #drawing-panel #vanityDrawing {
-            height: 100% !important;
-            max-height: none !important;
-        }
-
-        /* prevent extra space being reserved for the “pinned” panel layout */
-        body.drawing-expanded #page-container {
-            padding-bottom: 0 !important;
-        }
 
 
         /* =========================
@@ -831,16 +759,34 @@
                 top: 0;
                 left: 0;
                 right: 0;
-                z-index: 2500;
+                z-index: 3500;
                 background: #fff;
                 border-bottom: 1px solid #eaeaea;
+
+                gap: 0 !important;
+                /* ✅ no space between buttons */
+            }
+
+            #global-nav .nav-left,
+            #global-nav .nav-right {
+                flex: 1;
+                gap: 0 !important;
+                /* ✅ no space inside each side */
+            }
+
+            #global-nav .nav-left button,
+            #global-nav .nav-right button {
+                width: 100%;
+                border-radius: 0 !important;
+                /* optional: looks like a single bar */
             }
 
             /* push content below fixed nav */
             #page-container {
-                padding-top: 84px !important;
+                padding-top: 72px !important;
             }
         }
+
 
 
 
@@ -1386,9 +1332,8 @@
             <!-- drawing panel -->
             <div id="drawing-panel">
                 <svg id="vanityDrawing" preserveAspectRatio="xMinYMin meet"></svg>
-                <button id="mobile-expand-close" class="mobile-expand-close" type="button">
-                    close
-                </button>
+                <button id="mobile-expand-close" class="mobile-expand-close">close</button>
+
 
 
             </div>
@@ -7392,12 +7337,19 @@
 
             const isExpanded = document.body.classList.contains("drawing-expanded");
 
-            // In expanded mode, rotate to landscape first, then apply the same pan/zoom
-            const rotate = isExpanded ? " rotate(-90deg)" : "";
-
-            svg.style.transform =
-                `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})${rotate}`;
+            // In expanded mode: rotate to landscape, then apply pan/zoom
+            // IMPORTANT: rotate first, then translate/scale so gestures feel normal.
+            if (isExpanded) {
+                svg.style.transformOrigin = "center center";
+                svg.style.transform =
+                    `rotate(-90deg) translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
+            } else {
+                svg.style.transformOrigin = "center center";
+                svg.style.transform =
+                    `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
+            }
         }
+
 
 
         function getTouchDistance(t1, t2) {
@@ -7415,18 +7367,21 @@
 
 
         function setupMobileDrawingGestures() {
-            // We are currently using the DESKTOP drawing panel on mobile,
-            // so gestures must attach to #vanityDrawing (not #mobileVanityDrawing).
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
             // only enable on mobile widths
             if (window.innerWidth > 768) return;
 
-            // IMPORTANT:
-            // - do NOT block 1-finger scrolling (that’s how horizontal scroll works)
-            // - only preventDefault on 2-finger gestures (pinch)
+            let lastOneFinger = null;
+
             svg.addEventListener("touchstart", (e) => {
+                if (!document.body.classList.contains("drawing-expanded")) return;
+
+                if (e.touches.length === 1) {
+                    lastOneFinger = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+
                 if (e.touches.length === 2) {
                     lastTouchDist = getTouchDistance(e.touches[0], e.touches[1]);
                     lastTouchMid = getTouchMidpoint(e.touches[0], e.touches[1]);
@@ -7434,8 +7389,25 @@
             }, { passive: false });
 
             svg.addEventListener("touchmove", (e) => {
+                if (!document.body.classList.contains("drawing-expanded")) return;
+
+                // 1-finger pan (expanded only)
+                if (e.touches.length === 1 && lastOneFinger) {
+                    e.preventDefault();
+
+                    const x = e.touches[0].clientX;
+                    const y = e.touches[0].clientY;
+
+                    mobileTranslateX += (x - lastOneFinger.x);
+                    mobileTranslateY += (y - lastOneFinger.y);
+
+                    lastOneFinger = { x, y };
+                    applyMobileTransform();
+                    return;
+                }
+
+                // 2-finger pinch + pan midpoint
                 if (e.touches.length === 2) {
-                    e.stopPropagation();
                     e.preventDefault();
 
                     const newDist = getTouchDistance(e.touches[0], e.touches[1]);
@@ -7449,13 +7421,10 @@
 
                     const scaleDelta = newDist / lastTouchDist;
                     mobileScale *= scaleDelta;
-
-                    // clamp scale
                     mobileScale = Math.max(0.5, Math.min(3, mobileScale));
 
-                    // pan relative to midpoint movement
-                    mobileTranslateX += newMid.x - lastTouchMid.x;
-                    mobileTranslateY += newMid.y - lastTouchMid.y;
+                    mobileTranslateX += (newMid.x - lastTouchMid.x);
+                    mobileTranslateY += (newMid.y - lastTouchMid.y);
 
                     lastTouchDist = newDist;
                     lastTouchMid = newMid;
@@ -7465,14 +7434,15 @@
             }, { passive: false });
 
             svg.addEventListener("touchend", (e) => {
-                // when pinch ends, reset trackers
+                if (!e.touches || e.touches.length === 0) {
+                    lastOneFinger = null;
+                }
                 if (!e.touches || e.touches.length < 2) {
                     lastTouchDist = null;
                     lastTouchMid = null;
                 }
             });
         }
-
 
         window.addEventListener("load", () => {
             setupDrawingEngine();
