@@ -7522,29 +7522,16 @@
                 mobileTranslateX = 0;
                 mobileTranslateY = 0;
 
-                if (on) {
-                    // Best-effort fullscreen (may be blocked in iframes/iOS)
-                    const panel = document.getElementById("drawing-panel");
-                    if (panel && panel.requestFullscreen) {
-                        panel.requestFullscreen().catch(() => { });
-                    }
-
-                    // Recenter AFTER fullscreen/layout settles (URL bar / viewport changes)
-                    requestAnimationFrame(() => {
-                        if (typeof applyMobileTransform === "function") applyMobileTransform();
-                    });
-
-                } else {
-                    // Exit fullscreen if we entered it
-                    if (document.fullscreenElement && document.exitFullscreen) {
-                        document.exitFullscreen().catch(() => { });
-                    }
-
-                    // Clear any transforms on close (your applyMobileTransform() handles this)
+                // Recenter using the *visible* viewport (accounts for mobile URL bar)
+                requestAnimationFrame(() => {
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
+                });
+
+                // Apply transform rules (expanded centers + enables gestures; non-expanded clears transforms)
+                if (typeof applyMobileTransform === "function") {
+                    applyMobileTransform();
                 }
             }
-
 
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
