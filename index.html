@@ -408,25 +408,6 @@
 
         }
 
-        /* pin price button inside drawing panel (stays put during horizontal scroll) */
-        #drawing-panel {
-            position: relative;
-        }
-
-        #drawing-panel .drawing-price {
-            position: sticky;
-            top: 4px;
-            /* tight top gap */
-            right: 4px;
-            /* tight right gap */
-            float: right;
-            z-index: 5000;
-
-            border-radius: 999px;
-            padding: 6px 10px;
-            /* slightly tighter button */
-        }
-
 
 
         #drawing-panel #vanityDrawing {
@@ -518,62 +499,7 @@
             }
         }
 
-        /* =========================================================
-   EXPANDED DRAWING MODE (mobile only)
-========================================================= */
-        @media (max-width: 768px) {
 
-            /* full-screen takeover */
-            body.drawing-expanded {
-                overflow: hidden;
-            }
-
-            body.drawing-expanded #drawing-panel {
-                position: fixed !important;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-
-                height: 100vh !important;
-                min-height: 0 !important;
-
-                z-index: 5000;
-                padding: 12px;
-                background: #fff;
-            }
-
-            /* hide "view price" in expanded mode */
-            body.drawing-expanded #mobile-price-button {
-                display: none !important;
-            }
-
-            /* turn the expand button into the close "X" */
-            body.drawing-expanded #mobile-expand-button {
-                position: fixed !important;
-                top: 10px;
-                right: 10px;
-                z-index: 6000;
-
-                width: 44px;
-                height: 44px;
-                border-radius: 999px;
-                font-size: 22px;
-                line-height: 1;
-                padding: 0;
-            }
-
-            /* make sure the drawing itself fills the screen height */
-            body.drawing-expanded #drawing-panel #vanityDrawing {
-                height: 100% !important;
-                max-height: none !important;
-            }
-
-            /* prevent extra space being reserved for the “pinned” panel layout */
-            body.drawing-expanded #page-container {
-                padding-bottom: 0 !important;
-            }
-        }
 
 
 
@@ -748,6 +674,63 @@
             /* keep the mini-app hidden for now */
             #mobile-app {
                 display: none;
+            }
+        }
+
+        /* =========================================================
+   EXPANDED DRAWING MODE (mobile only)
+========================================================= */
+        @media (max-width: 768px) {
+
+            /* full-screen takeover */
+            body.drawing-expanded {
+                overflow: hidden;
+            }
+
+            body.drawing-expanded #drawing-panel {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+
+                height: 100vh !important;
+                min-height: 0 !important;
+
+                z-index: 5000;
+                padding: 12px;
+                background: #fff;
+            }
+
+            /* hide "view price" in expanded mode */
+            body.drawing-expanded #mobile-price-button {
+                display: none !important;
+            }
+
+            /* turn the expand button into the close "X" */
+            body.drawing-expanded #mobile-expand-button {
+                position: fixed !important;
+                top: 10px;
+                right: 10px;
+                z-index: 6000;
+
+                width: 44px;
+                height: 44px;
+                border-radius: 999px;
+                font-size: 22px;
+                line-height: 1;
+                padding: 0;
+            }
+
+            /* make sure the drawing itself fills the screen height */
+            body.drawing-expanded #drawing-panel #vanityDrawing {
+                height: 100% !important;
+                max-height: none !important;
+            }
+
+            /* prevent extra space being reserved for the “pinned” panel layout */
+            body.drawing-expanded #page-container {
+                padding-bottom: 0 !important;
             }
         }
 
