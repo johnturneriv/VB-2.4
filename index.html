@@ -839,43 +839,52 @@
             }
         }
 
-
         /* =========================
-   MOBILE: PIN GLOBAL NAV
+   GLOBAL NAV: PINNED TOP BAR (ALL SIZES)
 ========================= */
+        #global-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+
+            z-index: 4000;
+            background: #fff;
+            /* ✅ not see-through */
+            border-bottom: 1px solid #eaeaea;
+            /* ✅ solid bar edge */
+        }
+
+        /* push content below fixed nav (ALL SIZES) */
+        #page-container {
+            padding-top: 86px;
+            /* enough room for the pinned bar */
+        }
+
+        /* MOBILE: keep your full-width button behavior */
         @media (max-width: 768px) {
             #global-nav {
-                position: fixed !important;
-                top: 0;
-                left: 0;
-                right: 0;
-                z-index: 3500;
-                background: #fff;
-                border-bottom: 1px solid #eaeaea;
-
                 gap: 0 !important;
-                /* ✅ no space between buttons */
             }
 
             #global-nav .nav-left,
             #global-nav .nav-right {
                 flex: 1;
                 gap: 0 !important;
-                /* ✅ no space inside each side */
             }
 
             #global-nav .nav-left button,
             #global-nav .nav-right button {
                 width: 100%;
                 border-radius: 0 !important;
-                /* optional: looks like a single bar */
             }
 
-            /* push content below fixed nav */
+            /* you already had this idea; keep it for mobile */
             #page-container {
                 padding-top: 72px !important;
             }
         }
+
 
 
 
@@ -1637,13 +1646,20 @@
             const idx = pagesArr.findIndex(p => p.id === pageId);
             currentPageIndex = idx >= 0 ? idx : 0;
 
-            // ✅ IMPORTANT: let UI visibility/layout settle FIRST (panel display, etc)
-            syncUIState(pageId);
+            updateDrawing();
             syncGlobalNavState();
+            syncUIState(pageId);
 
-            // ✅ Draw AFTER layout is updated so svg.getBoundingClientRect() is correct
+            // ✅ ALWAYS START EACH PAGE AT THE TOP
             requestAnimationFrame(() => {
-                updateDrawing();
+                window.scrollTo(0, 0);
+
+                const pageContainer = document.getElementById("page-container");
+                if (pageContainer) pageContainer.scrollTop = 0;
+
+                // if you ever use the mini mobile app container, reset it too
+                const mobileStep = document.getElementById("mobile-step-container");
+                if (mobileStep) mobileStep.scrollTop = 0;
             });
         }
 
@@ -7645,6 +7661,13 @@
                 openPriceModal(model);
             });
         }
+
+        window.addEventListener("load", () => {
+            window.scrollTo(0, 0);
+
+            const pageContainer = document.getElementById("page-container");
+            if (pageContainer) pageContainer.scrollTop = 0;
+        });
 
 
         window.addEventListener("load", () => {
