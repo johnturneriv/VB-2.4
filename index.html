@@ -629,6 +629,8 @@
             #page-container {
                 margin-left: 0 !important;
                 width: 100% !important;
+                max-width: 100% !important;
+
                 padding: 16px !important;
                 padding-bottom: 260px !important;
                 /* space for fixed drawing shell */
@@ -840,11 +842,11 @@
         }
 
         /* =========================
-   MOBILE: TRUE PINNED TOP BAR (SOLID, FIXED HEIGHT)
+   MOBILE GLOBAL NAV — MATCH DRAWING BAR STYLE (FIXED FLUSH TOP)
 ========================= */
         @media (max-width: 768px) {
 
-            /* solid bar: nothing can appear above it */
+            /* outer white bar */
             #global-nav {
                 position: fixed !important;
                 top: 0 !important;
@@ -855,51 +857,63 @@
                 background: #fff !important;
                 border-bottom: 1px solid #eaeaea !important;
 
-                height: 52px !important;
-                /* ✅ consistent bar height */
-                padding: 0 !important;
-                margin: 0 !important;
+                /* ✅ iOS safe area so nothing shows above */
+                padding-top: calc(8px + env(safe-area-inset-top)) !important;
+                padding-right: 10px !important;
+                padding-bottom: 8px !important;
+                padding-left: 10px !important;
+
+                /* ✅ let height be driven by padding + button height */
+                height: auto !important;
 
                 display: flex !important;
-                align-items: stretch !important;
-                /* ✅ buttons fill full bar height */
-                gap: 0 !important;
+                gap: 8px !important;
+                align-items: center !important;
                 overflow: hidden !important;
-                /* ✅ no “see through” gaps */
             }
 
             #global-nav .nav-left,
             #global-nav .nav-right {
                 flex: 1 1 0 !important;
                 display: flex !important;
-                gap: 0 !important;
-                margin: 0 !important;
+                gap: 8px !important;
             }
 
-            /* consistent button height + font */
+            /* buttons styled like mobile drawing buttons */
             #global-nav .nav-left button,
             #global-nav .nav-right button {
-                width: 100% !important;
-                height: 52px !important;
-                /* ✅ consistent button height */
-                padding: 0 14px !important;
+                flex: 1 !important;
+                height: 40px !important;
 
-                border-radius: 0 !important;
+                border-radius: 10px !important;
+                border: 1px solid #d1d5db !important;
 
-                font-size: 14px !important;
-                /* ✅ consistent font size */
+                font-size: 15px !important;
+                font-weight: 500 !important;
                 line-height: 1 !important;
-                font-weight: 600 !important;
 
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
+
                 white-space: nowrap !important;
+                padding: 0 10px !important;
             }
 
-            /* push content below the fixed mobile bar */
+            /* preserve forward / back color intent */
+            #global-nav .nav-left button {
+                background: #f3f4f6 !important;
+                color: #222 !important;
+            }
+
+            #global-nav .nav-right button {
+                background: #1a73e8 !important;
+                color: #fff !important;
+            }
+
+            /* push page content below the bar (includes safe-area + padding + button height) */
             #page-container {
-                padding-top: 72px !important;
+                padding-top: calc(8px + env(safe-area-inset-top) + 40px + 8px + 16px) !important;
             }
         }
 
@@ -956,7 +970,7 @@
             <div class="nav-item active" data-page="page1">your info</div>
             <div class="nav-item" data-page="page2">vanity details</div>
             <div class="nav-item" data-page="page3">layout & style</div>
-            <div class="nav-item" data-page="page4">further customization</div>
+            <div class="nav-item" data-page="page4">more customization</div>
             <div class="nav-item" data-page="page5">materials & finish</div>
             <div class="nav-item" data-page="page6">summary</div>
         </aside>
@@ -1230,7 +1244,7 @@
                 <!-- nav buttons BELOW the card -->
                 <div class="nav-buttons">
                     <button class="back" data-back="page2">back</button>
-                    <button class="next" data-next="page4">next: further customization</button>
+                    <button class="next" data-next="page4">next: more customization</button>
                 </div>
             </section>
 
@@ -1238,7 +1252,7 @@
             <!-- PAGE 4 -->
             <section id="page4" class="page">
                 <div class="field-card">
-                    <h2>further customization</h2>
+                    <h2>more customization</h2>
 
                     <div class="field-row">
 
