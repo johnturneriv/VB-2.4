@@ -840,52 +840,68 @@
         }
 
         /* =========================
-   GLOBAL NAV: PINNED TOP BAR (ALL SIZES)
+   MOBILE: TRUE PINNED TOP BAR (SOLID, FIXED HEIGHT)
 ========================= */
-        #global-nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-
-            z-index: 4000;
-            background: #fff;
-            /* ✅ not see-through */
-            border-bottom: 1px solid #eaeaea;
-            /* ✅ solid bar edge */
-        }
-
-        /* push content below fixed nav (ALL SIZES) */
-        #page-container {
-            padding-top: 86px;
-            /* enough room for the pinned bar */
-        }
-
-        /* MOBILE: keep your full-width button behavior */
         @media (max-width: 768px) {
+
+            /* solid bar: nothing can appear above it */
             #global-nav {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+
+                z-index: 4000 !important;
+                background: #fff !important;
+                border-bottom: 1px solid #eaeaea !important;
+
+                height: 52px !important;
+                /* ✅ consistent bar height */
+                padding: 0 !important;
+                margin: 0 !important;
+
+                display: flex !important;
+                align-items: stretch !important;
+                /* ✅ buttons fill full bar height */
                 gap: 0 !important;
+                overflow: hidden !important;
+                /* ✅ no “see through” gaps */
             }
 
             #global-nav .nav-left,
             #global-nav .nav-right {
-                flex: 1;
+                flex: 1 1 0 !important;
+                display: flex !important;
                 gap: 0 !important;
+                margin: 0 !important;
             }
 
+            /* consistent button height + font */
             #global-nav .nav-left button,
             #global-nav .nav-right button {
-                width: 100%;
+                width: 100% !important;
+                height: 52px !important;
+                /* ✅ consistent button height */
+                padding: 0 14px !important;
+
                 border-radius: 0 !important;
+
+                font-size: 14px !important;
+                /* ✅ consistent font size */
+                line-height: 1 !important;
+                font-weight: 600 !important;
+
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                white-space: nowrap !important;
             }
 
-            /* you already had this idea; keep it for mobile */
+            /* push content below the fixed mobile bar */
             #page-container {
                 padding-top: 72px !important;
             }
         }
-
-
 
 
 
