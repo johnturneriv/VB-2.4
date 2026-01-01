@@ -1010,6 +1010,18 @@
         .stepper-input .stepper-btn:active {
             transform: scale(0.98);
         }
+
+        /* hide native number spinners (the “old vertical steppers”) */
+        .stepper-input input[type="number"] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        .stepper-input input[type="number"]::-webkit-outer-spin-button,
+        .stepper-input input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     </style>
 
 </head>
@@ -2810,129 +2822,103 @@
             return sections;
         }
 
-        // 2-SECTION LAYOUT OVERRIDE (conceptually 2 bays: drawer side + other side)
+        // 2-SECTION LAYOUT OVERRIDE (drawer bay + other bay)
         //
-        // - Works when there is exactly ONE drawer section in the layout
-        // - It does NOT require sections.length === 2 anymore; it can handle 3+,
-        //   as long as there is only one drawer bay.
-        // - Uses #drawerWidthTwoSection (inches) as the requested drawer-bay width.
+        // IMPORTANT:
+        // - widths in "sections" are FACE widths only
+        // - gaps (stiles) must remain gaps, not get baked into face widths
         function applyTwoSectionDrawerOverride(model, sectionsOverride) {
             const sections = sectionsOverride || model.sections || [];
-            if (!sections || !sections.length) return;
+            if (!sections || sections.length < 2) return;
 
             const twoInput = document.getElementById("drawerWidthTwoSection");
             if (!twoInput) return;
 
-            // Only do anything if the user has actually edited this field
+            // Only apply if the user has edited this field
             if (!drawerOverrideFlags || !drawerOverrideFlags.twoSection) return;
 
+            // Don't fight the user while typing
+            if (document.activeElement === twoInput) return;
+
             let requested = Number(twoInput.value);
-            if (!requested || !isFinite(requested)) return;
+            if (!isFinite(requested) || requested <= 0) return;
 
-            // Find which section is the drawer bay
-            const drawerIndex = sections.findIndex(sec => sec.role === "drawer");
-            if (drawerIndex === -1) {
-                // no drawer bay → nothing to override
-                return;
+            // Only works when there is exactly ONE drawer section
+            const drawerIdx = sections.findIndex(sec => sec.role === "drawer");
+            if (drawerIdx === -1) return;
+
+            const drawerCount = sections.filter(s => s.role === "drawer").length;
+            if (drawerCount !== 1) return;
+
+            // Gap width (stiles) stays as a gap
+            const removeStiles = model.removeStiles === true || model.frame?.removeStiles === true;
+            const gapWidthIn = removeStiles ? 0 : (model.frame?.stileWidthIn ?? FRAME_DEFAULTS.stileWidthIn ?? 0);
+            const gapsCount = Math.max(sections.length - 1, 0);
+            const totalGapIn = gapsCount * gapWidthIn;
+
+            // Total FACE width available (exclude gaps)
+            const totalFaceIn = sections.reduce((sum, s) => sum + (Number(s.widthIn) || 0), 0);
+            if (!isFinite(totalFaceIn) || totalFaceIn <= 0) return;
+
+            // Min face width guard
+            const MIN_FACE =
+                (typeof MIN_DRAWER_WIDTH === "number" && isFinite(MIN_DRAWER_WIDTH) && MIN_DRAWER_WIDTH > 0)
+                    ? MIN_DRAWER_WIDTH
+                    : ((typeof MIN_SECTION_WIDTH === "number" && isFinite(MIN_SECTION_WIDTH) && MIN_SECTION_WIDTH > 0)
+                        ? MIN_SECTION_WIDTH
+                        : 8.5);
+
+            // Clamp requested face width so "other" still has at least MIN_FACE
+            requested = Math.round(requested * 4) / 4;
+            if (requested < MIN_FACE) requested = MIN_FACE;
+            if (requested > totalFaceIn - MIN_FACE) requested = totalFaceIn - MIN_FACE;
+
+            const otherFaceTotal = totalFaceIn - requested;
+
+            // other sections (everything except drawer bay)
+            const others = sections.map((s, i) => ({ s, i })).filter(o => o.i !== drawerIdx);
+            if (!others.length) return;
+
+            const oldOtherTotal = others.reduce((sum, o) => sum + (Number(o.s.widthIn) || 0), 0);
+            if (!isFinite(oldOtherTotal) || oldOtherTotal <= 0) return;
+
+            // Apply new face widths
+            sections[drawerIdx].widthIn = requested;
+
+            // Scale other face widths proportionally into otherFaceTotal
+            let running = 0;
+            for (let k = 0; k < others.length; k++) {
+                const o = others[k].s;
+
+                let w;
+                if (k === others.length - 1) {
+                    // last gets the remainder (prevents rounding drift)
+                    w = otherFaceTotal - running;
+                } else {
+                    const frac = (Number(o.widthIn) || 0) / oldOtherTotal;
+                    w = otherFaceTotal * frac;
+                }
+
+                w = Math.max(MIN_FACE, w);
+                w = Math.round(w * 4) / 4;
+
+                o.widthIn = w;
+                running += w;
             }
 
-            // We conceptually treat this as TWO big zones:
-            //   - the drawer bay (one section)
-            //   - the "other" bay (all remaining sections merged)
-            //
-            // but we keep the other bay split into however many sections it already has,
-            // just scaled to fit.
-
-            const lastIndex = sections.length - 1;
-
-            // Full span across ALL sections
+            // Re-tile left->right using EXISTING left edge and the gap width
             const leftEdgeIn = sections[0].xIn;
-            const rightEdgeIn = sections[lastIndex].xIn + sections[lastIndex].widthIn;
-            let totalSpanIn = rightEdgeIn - leftEdgeIn;
+            let cursor = leftEdgeIn;
 
-            if (!isFinite(totalSpanIn) || totalSpanIn <= 0) return;
-
-            // Enforce min-width rules for the two conceptual bays
-            const min = (typeof MIN_SECTION_WIDTH === "number") ? MIN_SECTION_WIDTH : 8.5;
-
-            if (requested < min) requested = min;
-            if (requested > totalSpanIn - min) {
-                requested = totalSpanIn - min;
+            for (let i = 0; i < sections.length; i++) {
+                sections[i].xIn = cursor;
+                cursor += sections[i].widthIn;
+                if (i < sections.length - 1) cursor += gapWidthIn;
             }
 
-            const otherTotal = totalSpanIn - requested;
-
-            const drawerSec = sections[drawerIndex];
-
-            // Gather "other" sections (everything that is not the drawer bay)
-            const otherSections = sections.filter((_, i) => i !== drawerIndex);
-            if (!otherSections.length) return;
-
-            // Sum their existing widths so we can preserve relative proportions
-            const totalOtherOldWidth = otherSections.reduce((sum, s) => sum + s.widthIn, 0);
-            if (!isFinite(totalOtherOldWidth) || totalOtherOldWidth <= 0) return;
-
-            // Rebuild positions/widths so everything still tiles left-to-right
-            if (drawerIndex === 0) {
-                // drawer bay on the LEFT
-                drawerSec.xIn = leftEdgeIn;
-                drawerSec.widthIn = requested;
-
-                let cursor = leftEdgeIn + requested;
-
-                // scale all "other" sections into the remaining bay
-                for (let i = 0; i < otherSections.length; i++) {
-                    const s = otherSections[i];
-
-                    // proportional width
-                    let w;
-                    if (i === otherSections.length - 1) {
-                        // last one: absorb any rounding error
-                        w = (leftEdgeIn + totalSpanIn) - cursor;
-                    } else {
-                        const frac = s.widthIn / totalOtherOldWidth;
-                        w = otherTotal * frac;
-                    }
-
-                    s.xIn = cursor;
-                    s.widthIn = w;
-                    cursor += w;
-                }
-
-            } else if (drawerIndex === lastIndex) {
-                // drawer bay on the RIGHT
-                let cursor = leftEdgeIn;
-
-                const othersCount = otherSections.length;
-                for (let i = 0; i < othersCount; i++) {
-                    const s = otherSections[i];
-
-                    let w;
-                    if (i === othersCount - 1) {
-                        // last "other" section takes whatever is left before the drawer bay
-                        w = (leftEdgeIn + totalSpanIn) - (leftEdgeIn + otherTotal);
-                    } else {
-                        const frac = s.widthIn / totalOtherOldWidth;
-                        w = otherTotal * frac;
-                    }
-
-                    s.xIn = cursor;
-                    s.widthIn = w;
-                    cursor += w;
-                }
-
-                // now place drawer section at the far right
-                drawerSec.xIn = leftEdgeIn + otherTotal;
-                drawerSec.widthIn = requested;
-
-            } else {
-                // drawer bay in the middle (super edge-case for this feature),
-                // we can either bail or handle it in a more complex way.
-                // For now, we bail to avoid creating weird layouts.
-                return;
-            }
+            // Sync field to the clamped value (but never while focused)
+            twoInput.value = String(Math.round(requested * 4) / 4);
         }
-
 
 
         function computeSections(model) {
@@ -2947,6 +2933,7 @@
             const singleDw = drawerControls.singleDrawerWidthIn || 0;
             const outerDw = drawerControls.outerDrawerWidthIn || 0;
             const centerDw = drawerControls.centerDrawerWidthIn || 0;
+            const twoDw = drawerControls.twoSectionDrawerWidthIn || 0;
 
             // interior between legs
             const interiorStartIn = legWidthIn;
@@ -3058,7 +3045,8 @@
             const anyDrawerOverride =
                 drawerOverrideFlags.single ||
                 drawerOverrideFlags.outer ||
-                drawerOverrideFlags.center;
+                drawerOverrideFlags.center ||
+                drawerOverrideFlags.twoSection;
 
             // ============================================================
             // SINK-FIRST DEFAULT LAYOUT (no drawer overrides)
@@ -3451,35 +3439,6 @@
         }
 
         function syncDrawerInputsFromSections(model) {
-            // block first-load sync so it does not corrupt drawer widths
-
-            // Guard: drawer inputs must never be blank when visible
-            // If this trips, someone broke the sync contract
-
-            const anyVisible =
-                document.getElementById("drawerWidthSingleField")?.style.display !== "none" ||
-                document.getElementById("drawerWidthOuterField")?.style.display !== "none" ||
-                document.getElementById("drawerWidthCenterField")?.style.display !== "none" ||
-                document.getElementById("drawerWidthTwoSectionField")?.style.display !== "none";
-
-            if (anyVisible) {
-                const inputs = [
-                    document.getElementById("drawerWidthSingle"),
-                    document.getElementById("drawerWidthOuter"),
-                    document.getElementById("drawerWidthCenter"),
-                    document.getElementById("drawerWidthTwoSection")
-                ].filter(Boolean);
-
-                inputs.forEach(input => {
-                    if (input.value === "") {
-                        // Ignore blank fields that are not currently user-active
-                        return;
-                    }
-
-                });
-            }
-
-
             const sections = model.sections || [];
             const sectionCount = sections.length;
             if (!sectionCount) return;
@@ -3492,45 +3451,45 @@
             if (!singleInput && !outerInput && !centerInput && !twoSectionInput) return;
 
             function snapQuarter(val) {
-                if (!val || !isFinite(val)) return 0;
-                return Math.round(val * 4) / 4;
+                const n = Number(val);
+                if (!isFinite(n) || n <= 0) return 0;
+                return Math.round(n * 4) / 4;
+            }
+
+            function safeSet(inputEl, valueIn) {
+                if (!inputEl) return;
+                if (document.activeElement === inputEl) return; // 🔒 never overwrite while typing
+                const v = snapQuarter(valueIn);
+                if (v <= 0) return;
+                inputEl.value = String(v);
             }
 
             const drawerSecs = sections.filter(sec => sec.role === "drawer");
             const drawerCount = drawerSecs.length;
             const allDrawers = drawerCount === sectionCount;
 
-            // 2-section layouts with exactly ONE drawer section
-            // → sync #drawerWidthTwoSection from that drawer, unless user overrode it
-            if (
-                sectionCount === 2 &&
-                twoSectionInput &&
-                (!drawerOverrideFlags.twoSection || !initialDrawDone)
-            ) {
-
-                const drawerSecs = sections.filter(sec => sec.role === "drawer");
-                if (drawerSecs.length === 1) {
-                    const w = snapQuarter(drawerSecs[0].widthIn);
-                    if (w > 0) {
-                        twoSectionInput.value = w;
-                    }
+            // === 2-SECTION (exactly 1 drawer) → seed drawerWidthTwoSection unless user override ===
+            if (sectionCount === 2 && twoSectionInput) {
+                if (drawerOverrideFlags?.twoSection && initialDrawDone) {
+                    return; // user owns it now
                 }
-            }
-
-
-            // === 3-SECTION classic mixed → single ================================
-            if (sectionCount === 3 && !allDrawers) {
-                if (!singleInput) return;
-                if (drawerOverrideFlags.single && initialDrawDone) return;
-
-
-                if (!drawerSecs.length) return;
-                const w = snapQuarter(drawerSecs[0].widthIn);
-                if (w > 0) singleInput.value = w;
+                if (drawerSecs.length === 1) {
+                    // seed/refresh only when NOT focused and NOT user-owned
+                    safeSet(twoSectionInput, drawerSecs[0].widthIn);
+                }
                 return;
             }
 
-            // === 3-SECTION all drawers or 5-SECTION → outer + center =============
+            // === 3-SECTION mixed → single ===
+            if (sectionCount === 3 && !allDrawers) {
+                if (!singleInput) return;
+                if (drawerOverrideFlags?.single && initialDrawDone) return;
+                if (!drawerSecs.length) return;
+                safeSet(singleInput, drawerSecs[0].widthIn);
+                return;
+            }
+
+            // === 3-SECTION all drawers OR 5-SECTION → outer + center ===
             if (sectionCount === 5 || (sectionCount === 3 && allDrawers)) {
                 const drawers = sections
                     .map((sec, idx) => ({ sec, idx }))
@@ -3538,28 +3497,14 @@
 
                 if (!drawers.length) return;
 
-                // outer drawers (index 0 and last)
-                if (outerInput && (!drawerOverrideFlags.outer || !initialDrawDone)) {
-
-                    const outerDrawers = drawers.filter(
-                        d => d.idx === 0 || d.idx === sectionCount - 1
-                    );
-                    if (outerDrawers.length) {
-                        const w = snapQuarter(outerDrawers[0].sec.widthIn);
-                        if (w > 0) outerInput.value = w;
-                    }
+                if (outerInput && !(drawerOverrideFlags?.outer && initialDrawDone)) {
+                    const outerDrawers = drawers.filter(d => d.idx === 0 || d.idx === sectionCount - 1);
+                    if (outerDrawers.length) safeSet(outerInput, outerDrawers[0].sec.widthIn);
                 }
 
-                // center drawers (any drawer that's not outer)
-                if (centerInput && (!drawerOverrideFlags.center || !initialDrawDone)) {
-
-                    const centerDrawers = drawers.filter(
-                        d => d.idx !== 0 && d.idx !== sectionCount - 1
-                    );
-                    if (centerDrawers.length) {
-                        const w = snapQuarter(centerDrawers[0].sec.widthIn);
-                        if (w > 0) centerInput.value = w;
-                    }
+                if (centerInput && !(drawerOverrideFlags?.center && initialDrawDone)) {
+                    const centerDrawers = drawers.filter(d => d.idx !== 0 && d.idx !== sectionCount - 1);
+                    if (centerDrawers.length) safeSet(centerInput, centerDrawers[0].sec.widthIn);
                 }
             }
         }
@@ -7274,15 +7219,17 @@
 
                     // layout changes reset drawer overrides
                     if (
-                        id === "width" ||
-                        id === "sinkCount" ||
-                        id === "layoutPreset" ||
-                        id === "sinkPosition"
+                        (id === "width" ||
+                            id === "sinkCount" ||
+                            id === "layoutPreset" ||
+                            id === "sinkPosition") &&
+                        evt.type === "change"
                     ) {
                         drawerOverrideFlags.single = false;
                         drawerOverrideFlags.outer = false;
                         drawerOverrideFlags.center = false;
                         drawerOverrideFlags.twoSection = false;
+
 
                         if (singleInput) singleInput.value = "";
                         if (outerInput) outerInput.value = "";
@@ -7424,12 +7371,44 @@
                     updateDrawing();
                 };
 
+                const isDrawerWidth =
+                    id === "drawerWidthSingle" ||
+                    id === "drawerWidthOuter" ||
+                    id === "drawerWidthCenter" ||
+                    id === "drawerWidthTwoSection";
+
                 const useChangeOnly = (
+                    isDrawerWidth ||
                     el.tagName === "SELECT" ||
-                    el.type === "checkbox"
+                    el.type === "checkbox" ||
+                    el.type === "radio"
                 );
 
+                // 🔑 For drawer widths:
+                // - "input" sets override flags immediately (prevents sync from overwriting while typing)
+                // - "change" triggers recompute + draw once the user commits
+                if (isDrawerWidth) {
+                    el.addEventListener("input", (evt) => {
+                        if (id === "drawerWidthSingle") {
+                            drawerOverrideFlags.single = true;
+                            lastDrawerEdited = "single";
+                        } else if (id === "drawerWidthOuter") {
+                            drawerOverrideFlags.outer = true;
+                            lastDrawerEdited = "outer";
+                        } else if (id === "drawerWidthCenter") {
+                            drawerOverrideFlags.center = true;
+                            lastDrawerEdited = "center";
+                        } else if (id === "drawerWidthTwoSection") {
+                            drawerOverrideFlags.twoSection = true;
+                            lastDrawerEdited = "twoSection";
+                        }
+                        // IMPORTANT: no updateDrawing() here
+                    });
+                }
+
+                // Keep your main handler exactly as-is, but now drawer widths redraw on "change"
                 el.addEventListener(useChangeOnly ? "change" : "input", handler);
+
 
             });
 
@@ -7719,6 +7698,15 @@
                 return Math.round(x * 4) / 4;
             };
 
+            function isDrawerWidth(id) {
+                return (
+                    id === "drawerWidthSingle" ||
+                    id === "drawerWidthOuter" ||
+                    id === "drawerWidthCenter" ||
+                    id === "drawerWidthTwoSection"
+                );
+            }
+
             function markDrawerOverride(id) {
                 if (typeof drawerOverrideFlags === "undefined") return;
                 if (id === "drawerWidthSingle") { drawerOverrideFlags.single = true; lastDrawerEdited = "single"; }
@@ -7727,7 +7715,7 @@
                 if (id === "drawerWidthTwoSection") { drawerOverrideFlags.twoSection = true; lastDrawerEdited = "twoSection"; }
             }
 
-            // Seed from what is currently DRAWN (model.sections), only when the field is blank
+            // Seed from current model (only if field is blank)
             function seedFromModel(inputId) {
                 try {
                     if (typeof computeModel !== "function") return null;
@@ -7747,17 +7735,14 @@
                         return (q != null && q > 0) ? q : null;
                     };
 
-                    // 2-section layouts w/ 1 drawer
                     if (inputId === "drawerWidthTwoSection" && n === 2 && drawers.length === 1) {
                         return s(drawers[0].sec.widthIn);
                     }
 
-                    // 3-section mixed → single
                     if (inputId === "drawerWidthSingle" && n === 3) {
                         return s(drawers[0].sec.widthIn);
                     }
 
-                    // 5-section (or 3 all drawers) → outer/center
                     if (n === 5 || (n === 3 && drawers.length === 3)) {
                         if (inputId === "drawerWidthOuter") {
                             const outer = drawers.find(d => d.idx === 0) || drawers.find(d => d.idx === n - 1) || drawers[0];
@@ -7770,7 +7755,7 @@
                     }
 
                     return null;
-                } catch (e) {
+                } catch {
                     return null;
                 }
             }
@@ -7786,7 +7771,7 @@
                 const stepAttr = wrap.getAttribute("data-step");
                 const step = (stepAttr != null && stepAttr !== "") ? Number(stepAttr) : 0.25;
 
-                // Snap on blur (only if user typed something)
+                // SNAP ON BLUR (manual typing)
                 input.addEventListener("blur", () => {
                     const raw = String(input.value ?? "").trim();
                     if (raw === "") return;
@@ -7796,9 +7781,13 @@
 
                     input.value = String(snapped);
                     markDrawerOverride(input.id);
-                    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+                    input.dispatchEvent(
+                        new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
+                    );
                 });
 
+                // STEPPER BUTTONS
                 wrap.querySelectorAll(".stepper-btn").forEach((btn) => {
                     btn.addEventListener("click", (e) => {
                         e.preventDefault();
@@ -7807,7 +7796,6 @@
                         const dir = Number(btn.getAttribute("data-dir"));
                         if (!isFinite(dir) || dir === 0) return;
 
-                        // start from current field value, OR if blank, start from what the drawing/model is using
                         const raw = String(input.value ?? "").trim();
                         let base = parseFloat(raw);
 
@@ -7823,7 +7811,10 @@
 
                         input.value = String(snapped);
                         markDrawerOverride(input.id);
-                        input.dispatchEvent(new Event("input", { bubbles: true }));
+
+                        input.dispatchEvent(
+                            new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
+                        );
                     });
                 });
             });
