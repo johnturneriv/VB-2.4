@@ -2621,11 +2621,7 @@
         function applyDrawerWidthOverrides(model, sections) {
             if (!sections || !sections.length) return sections;
 
-            const widthIn = model.widthIn || 0;
             const sectionCount = sections.length;
-
-            // safety: use existing MIN_SECTION_WIDTH if defined, otherwise 8.5"
-            const MIN_W = (typeof MIN_SECTION_WIDTH === "number") ? MIN_SECTION_WIDTH : 8.5;
 
             // helper: snap to nearest 1/4"
             function snapQuarter(val) {
@@ -2642,185 +2638,185 @@
                 return snapQuarter(raw);
             }
 
-            const drawerInfos = sections
-                .map((sec, idx) => ({ sec, idx }))
-                .filter(d => d.sec.role === "drawer");
+            // minimums
+            const MIN_W = 8.5; // general bay minimum
+            const MIN_SINK_W = (typeof DEFAULT_MIN_SINK_SECTION_WIDTH === "number")
+                ? DEFAULT_MIN_SINK_SECTION_WIDTH
+                : 20;
 
-            const drawerCount = drawerInfos.length;
-            if (!drawerCount) return sections; // nothing to override
+            // Sink bays are protected; everything else is adjustable
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            if (!sinkIdx.length) return sections; // no sinks → do nothing here
 
-            // =====================================================================
-            // CASE A: 2-SECTION OFF-CENTER LAYOUTS WITH EXACTLY ONE DRAWER SECTION
-            //         → use drawerWidthSingle, adjust the OTHER bay to keep total
-            // =====================================================================
-            if (sectionCount === 2 && drawerCount === 1 && drawerOverrideFlags.single) {
-                const desiredRaw = readDrawerInput("drawerWidthSingle");
-                if (desiredRaw == null || widthIn <= 0) return sections;
+            const protectedSet = new Set(sinkIdx);
+            const protectedIdx = sections.map((_, i) => i).filter(i => protectedSet.has(i));
+            const adjustableIdx = sections.map((_, i) => i).filter(i => !protectedSet.has(i));
 
-                // clamp to something sane
-                let drawerW = desiredRaw;
-                if (drawerW < MIN_W) drawerW = MIN_W;
+            if (!adjustableIdx.length || !protectedIdx.length) return sections;
 
-                // we must leave at least MIN_W" for the other section
-                const maxDrawer = Math.max(widthIn - MIN_W, MIN_W);
-                if (drawerW > maxDrawer) drawerW = maxDrawer;
+            // Total interior span is the sum of section widths (gaps are handled elsewhere)
+            const totalWidth = sections.reduce((sum, s) => sum + (s.widthIn || 0), 0);
+            if (!(totalWidth > 0)) return sections;
 
-                const drawer = drawerInfos[0];
-                const drawerIdx = drawer.idx;
-                const otherIdx = drawerIdx === 0 ? 1 : 0;
+            // -----------------------------
+            // Decide which control is active
+            // -----------------------------
+            const targets = {}; // idx -> desired width
 
-                // recompute both sections so they still sum to widthIn
-                const otherW = widthIn - drawerW;
+            let appliedAny = false;
 
-                // lay them out from left to right
-                if (drawerIdx === 0) {
-                    // drawer on the LEFT
-                    sections[0].xIn = 0;
-                    sections[0].widthIn = drawerW;
-
-                    sections[1].xIn = drawerW;
-                    sections[1].widthIn = otherW;
-                } else {
-                    // drawer on the RIGHT
-                    sections[0].xIn = 0;
-                    sections[0].widthIn = otherW;
-
-                    sections[1].xIn = otherW;
-                    sections[1].widthIn = drawerW;
+            // 2-section: dedicated field
+            if (sectionCount === 2 && drawerOverrideFlags?.twoSection) {
+                const desired = readDrawerInput("drawerWidthTwoSection");
+                if (desired != null) {
+                    const adj = adjustableIdx[0]; // there should be exactly one adjustable bay when sink exists
+                    targets[adj] = Math.max(MIN_W, desired);
+                    appliedAny = true;
                 }
+            }
 
+            // 3-section: single field
+            if (!appliedAny && sectionCount === 3 && drawerOverrideFlags?.single) {
+                const desired = readDrawerInput("drawerWidthSingle");
+                if (desired != null) {
+                    adjustableIdx.forEach(i => targets[i] = Math.max(MIN_W, desired));
+                    appliedAny = true;
+                }
+            }
+
+            // 5-section: outer/center if meaningful, else single
+            if (!appliedAny && sectionCount === 5) {
+                const minAdj = Math.min(...adjustableIdx);
+                const maxAdj = Math.max(...adjustableIdx);
+
+                const outerAdj = adjustableIdx.filter(i => i === minAdj || i === maxAdj);
+                const centerAdj = adjustableIdx.filter(i => i !== minAdj && i !== maxAdj);
+
+                const canUseOuterCenter = outerAdj.length && centerAdj.length;
+
+                if (canUseOuterCenter && (drawerOverrideFlags?.outer || drawerOverrideFlags?.center)) {
+                    if (drawerOverrideFlags.outer) {
+                        const o = readDrawerInput("drawerWidthOuter");
+                        if (o != null) {
+                            outerAdj.forEach(i => targets[i] = Math.max(MIN_W, o));
+                            appliedAny = true;
+                        }
+                    }
+                    if (drawerOverrideFlags.center) {
+                        const c = readDrawerInput("drawerWidthCenter");
+                        if (c != null) {
+                            centerAdj.forEach(i => targets[i] = Math.max(MIN_W, c));
+                            appliedAny = true;
+                        }
+                    }
+                } else if (drawerOverrideFlags?.single) {
+                    const desired = readDrawerInput("drawerWidthSingle");
+                    if (desired != null) {
+                        adjustableIdx.forEach(i => targets[i] = Math.max(MIN_W, desired));
+                        appliedAny = true;
+                    }
+                }
+            }
+
+            // fallback: single field if flagged and nothing else applied
+            if (!appliedAny && drawerOverrideFlags?.single) {
+                const desired = readDrawerInput("drawerWidthSingle");
+                if (desired != null) {
+                    adjustableIdx.forEach(i => targets[i] = Math.max(MIN_W, desired));
+                    appliedAny = true;
+                }
+            }
+
+            if (!appliedAny) return sections;
+
+            // Fill unspecified adjustable targets with current widths (so partial overrides work)
+            adjustableIdx.forEach(i => {
+                if (targets[i] == null) targets[i] = Math.max(MIN_W, sections[i].widthIn || 0);
+            });
+
+            // -----------------------------
+            // Clamp so protected sink bays never drop below MIN_SINK_W
+            // -----------------------------
+            const protectedMinTotal = protectedIdx.length * MIN_SINK_W;
+            const maxAdjustableTotal = totalWidth - protectedMinTotal;
+
+            const adjustableMinTotal = adjustableIdx.length * MIN_W;
+            if (maxAdjustableTotal < adjustableMinTotal - 1e-6) {
+                // Not feasible; don’t mangle layout
                 return sections;
             }
 
-            // =====================================================================
-            // CASE B: 3-SECTION LAYOUTS USING SINGLE CONTROL
-            //         (all-drawer OR mixed) → drawerWidthSingle
-            // =====================================================================
-            if (sectionCount === 3 && drawerOverrideFlags.single) {
-                const desiredRaw = readDrawerInput("drawerWidthSingle");
-                if (desiredRaw == null || widthIn <= 0) return sections;
+            let adjustableTotal = adjustableIdx.reduce((sum, i) => sum + (targets[i] || 0), 0);
 
-                const drawerCount3 = drawerInfos.length;
-                const doorCount3 = sectionCount - drawerCount3;
+            // If too large, scale down (but not below MIN_W)
+            if (adjustableTotal > maxAdjustableTotal + 1e-6) {
+                const excess = adjustableTotal - maxAdjustableTotal;
 
-                if (drawerCount3 <= 0) return sections;
-
-                let drawerW = desiredRaw;
-                if (drawerW < MIN_W) drawerW = MIN_W;
-
-                // total drawer width
-                let drawerTotal = drawerW * drawerCount3;
-                const minDoorTotal = doorCount3 * MIN_W;
-
-                // if that plus min doors won't fit, shrink the drawer width
-                if (drawerTotal + minDoorTotal > widthIn - 0.01) {
-                    const maxDrawerTotal = widthIn - minDoorTotal;
-                    if (maxDrawerTotal <= 0) return sections;
-                    drawerW = snapQuarter(maxDrawerTotal / drawerCount3);
-                    if (drawerW < MIN_W) drawerW = MIN_W;
-                    drawerTotal = drawerW * drawerCount3;
-                }
-
-                const leftover = widthIn - drawerTotal;
-                const doorW = (doorCount3 > 0 ? leftover / doorCount3 : 0);
-
-                // now reflow all three sections left → right
-                let x = 0;
-                for (let i = 0; i < sectionCount; i++) {
-                    const sec = sections[i];
-                    if (sec.role === "drawer") {
-                        sec.xIn = x;
-                        sec.widthIn = drawerW;
-                        x += drawerW;
-                    } else {
-                        sec.xIn = x;
-                        sec.widthIn = doorW;
-                        x += doorW;
-                    }
-                }
-
-                return sections;
-            }
-
-            // =====================================================================
-            // CASE C: 5-SECTION LAYOUTS (classic drawer / door / drawer / door / drawer)
-            //         → outer drawers use drawerWidthOuter, center drawer uses drawerWidthCenter
-            // =====================================================================
-            if (sectionCount === 5 && (drawerOverrideFlags.outer || drawerOverrideFlags.center)) {
-                const outerValRaw = drawerOverrideFlags.outer ? readDrawerInput("drawerWidthOuter") : null;
-                const centerValRaw = drawerOverrideFlags.center ? readDrawerInput("drawerWidthCenter") : null;
-
-                if (outerValRaw == null && centerValRaw == null) return sections;
-
-                const outerVal = outerValRaw != null ? Math.max(MIN_W, outerValRaw) : null;
-                const centerVal = centerValRaw != null ? Math.max(MIN_W, centerValRaw) : null;
-
-                // identify leftmost and rightmost drawer as "outer"; any others are "center"
-                const drawerIndicesSorted = drawerInfos.map(d => d.idx).sort((a, b) => a - b);
-                const firstDrawerIdx = drawerIndicesSorted[0];
-                const lastDrawerIdx = drawerIndicesSorted[drawerIndicesSorted.length - 1];
-
-                const drawerTargets = new Array(sectionCount).fill(null);
-
-                // set targets for outer drawers
-                drawerInfos.forEach(({ idx }) => {
-                    if (idx === firstDrawerIdx || idx === lastDrawerIdx) {
-                        if (outerVal != null) drawerTargets[idx] = outerVal;
-                    }
-                });
-
-                // center drawers (any drawer that's not the extreme left/right)
-                drawerInfos.forEach(({ idx }) => {
-                    if (idx !== firstDrawerIdx && idx !== lastDrawerIdx) {
-                        if (centerVal != null) drawerTargets[idx] = centerVal;
-                    }
-                });
-
-                // fall back to current width if some drawers had no override
-                drawerInfos.forEach(({ sec, idx }) => {
-                    if (drawerTargets[idx] == null) {
-                        drawerTargets[idx] = sec.widthIn;
-                    }
-                });
-
-                // total drawer width and door counts
-                const drawerTotal = drawerInfos.reduce((sum, { idx }) => {
-                    return sum + (drawerTargets[idx] || 0);
+                const reducible = adjustableIdx.reduce((sum, i) => {
+                    return sum + Math.max(0, (targets[i] || 0) - MIN_W);
                 }, 0);
 
-                const doorCount5 = sectionCount - drawerInfos.length;
-                const minDoorTotal = doorCount5 * MIN_W;
+                if (reducible <= 1e-6) return sections;
 
-                if (drawerTotal + minDoorTotal > widthIn - 0.01) {
-                    // not enough room to respect all overrides + min doors → bail instead of mangling everything
-                    return sections;
-                }
+                adjustableIdx.forEach(i => {
+                    const cur = targets[i] || 0;
+                    const room = Math.max(0, cur - MIN_W);
+                    const cut = excess * (room / reducible);
+                    targets[i] = snapQuarter(Math.max(MIN_W, cur - cut));
+                });
 
-                const leftover = widthIn - drawerTotal;
-                const doorW = (doorCount5 > 0 ? leftover / doorCount5 : 0);
+                adjustableTotal = adjustableIdx.reduce((sum, i) => sum + (targets[i] || 0), 0);
+            }
 
-                // reflow all five sections left → right
-                let x = 0;
-                for (let i = 0; i < sectionCount; i++) {
-                    const sec = sections[i];
-                    if (sec.role === "drawer") {
-                        const target = drawerTargets[i] || sec.widthIn;
-                        sec.xIn = x;
-                        sec.widthIn = target;
-                        x += target;
-                    } else {
-                        sec.xIn = x;
-                        sec.widthIn = doorW;
-                        x += doorW;
-                    }
-                }
+            // -----------------------------
+            // Distribute remaining width to protected sink bays
+            // -----------------------------
+            const protectedTotal = totalWidth - adjustableTotal;
 
+            // Start with minimums
+            const protWidths = {};
+            protectedIdx.forEach(i => protWidths[i] = MIN_SINK_W);
+
+            let remaining = protectedTotal - protectedMinTotal;
+            if (remaining < -1e-6) {
+                // numerical weirdness; bail safely
                 return sections;
             }
 
-            // all other layouts → leave sections as computed
+            // Distribute remaining proportionally by current (width - min)
+            const weights = protectedIdx.map(i => {
+                const cur = sections[i].widthIn || 0;
+                return Math.max(0, cur - MIN_SINK_W);
+            });
+            const weightSum = weights.reduce((a, b) => a + b, 0);
+
+            if (weightSum > 1e-6) {
+                protectedIdx.forEach((i, k) => {
+                    protWidths[i] = snapQuarter(MIN_SINK_W + remaining * (weights[k] / weightSum));
+                });
+            } else {
+                // If all weights are zero, split evenly
+                const add = remaining / protectedIdx.length;
+                protectedIdx.forEach(i => {
+                    protWidths[i] = snapQuarter(MIN_SINK_W + add);
+                });
+            }
+
+            // -----------------------------
+            // Apply widths back to sections (NO xIn here)
+            // -----------------------------
+            adjustableIdx.forEach(i => {
+                sections[i].widthIn = targets[i];
+            });
+
+            protectedIdx.forEach(i => {
+                sections[i].widthIn = protWidths[i];
+            });
+
             return sections;
         }
+
+
 
         // 2-SECTION LAYOUT OVERRIDE (drawer bay + other bay)
         //
@@ -3334,6 +3330,9 @@
                 }
             }
 
+            // Apply drawer-width overrides (sink bays protected; non-sink bays adjustable)
+            applyDrawerWidthOverrides(model, sections);
+
             // Rebuild x-positions now that widths are final
             let runX = interiorStartIn;
             for (let i = 0; i < sections.length; i++) {
@@ -3346,11 +3345,8 @@
                 }
             }
 
-            // Final tweak: 2-section off-center drawer override (if active)
-            applyTwoSectionDrawerOverride(model, sections);
-
-
             return sections;
+
         }
 
 
@@ -3383,12 +3379,15 @@
         // ⚠️ VISIBILITY ONLY
         // This function must NEVER write drawer input values.
         // Drawer width inputs are synced ONLY in syncDrawerInputsFromSections().
+        // ⚠️ VISIBILITY ONLY
+        // This function must NEVER write drawer input values.
+        // Drawer width inputs are synced ONLY in syncDrawerInputsFromSections().
 
         function updateDrawerWidthFieldsVisibility(model) {
             const singleWrap = document.getElementById("drawerWidthSingleField");
             const outerWrap = document.getElementById("drawerWidthOuterField");
             const centerWrap = document.getElementById("drawerWidthCenterField");
-            const twoSectionWrap = document.getElementById("drawerWidthTwoSectionField"); // NEW
+            const twoSectionWrap = document.getElementById("drawerWidthTwoSectionField");
 
             if (!singleWrap || !outerWrap || !centerWrap || !twoSectionWrap) return;
 
@@ -3399,44 +3398,55 @@
             singleWrap.style.display = "none";
             outerWrap.style.display = "none";
             centerWrap.style.display = "none";
-            if (twoSectionWrap) twoSectionWrap.style.display = "none";
+            twoSectionWrap.style.display = "none";
 
             if (!sectionCount) return;
 
-            const drawerSections = sections.filter(sec => sec.role === "drawer");
-            const drawerCount = drawerSections.length;
+            // Sink bays are protected; everything else is adjustable
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            if (!sinkIdx.length) return; // no sinks → this visibility system does nothing
 
-            // no drawers at all → nothing to adjust
-            if (!drawerCount) return;
+            const protectedSet = new Set(sinkIdx);
+            const adjustableIdx = sections
+                .map((_, i) => i)
+                .filter(i => !protectedSet.has(i));
 
-            const allDrawers = drawerCount === sectionCount;
+            // no adjustable bays → nothing to adjust
+            if (!adjustableIdx.length) return;
 
-            // CASE 2: 2-SECTION layouts with exactly ONE drawer section
-            //         → dedicated 2-section drawer width control
-            if (sectionCount === 2 && drawerCount === 1) {
-                if (twoSectionWrap) twoSectionWrap.style.display = "";
+            if (sectionCount === 2) {
+                twoSectionWrap.style.display = "";
                 return;
             }
 
-
-            // 3-section "classic" mixed layouts → single field
-            if (sectionCount === 3 && !allDrawers) {
+            if (sectionCount === 3) {
                 singleWrap.style.display = "";
                 return;
             }
 
-            // 3-section all-drawer or 5-section layouts → outer + center
-            if (sectionCount === 5 || (sectionCount === 3 && allDrawers)) {
-                outerWrap.style.display = "";
-                centerWrap.style.display = "";
+            if (sectionCount === 5) {
+                const minAdj = Math.min(...adjustableIdx);
+                const maxAdj = Math.max(...adjustableIdx);
+
+                const outerAdj = adjustableIdx.filter(i => i === minAdj || i === maxAdj);
+                const centerAdj = adjustableIdx.filter(i => i !== minAdj && i !== maxAdj);
+
+                if (outerAdj.length && centerAdj.length) {
+                    outerWrap.style.display = "";
+                    centerWrap.style.display = "";
+                    return;
+                }
+
+                singleWrap.style.display = "";
                 return;
             }
 
-            // fallback: single field if we ever hit a weird case with drawers
-            if (drawerCount > 0) {
-                singleWrap.style.display = "";
-            }
+            singleWrap.style.display = "";
         }
+
+
+
+
 
         function syncDrawerInputsFromSections(model) {
             const sections = model.sections || [];
