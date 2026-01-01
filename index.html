@@ -967,36 +967,48 @@
             background: #f5f6f8;
         }
 
-        /* ===== stepper inputs (drawer widths) ===== */
+        /* =========================================================
+   INLINE +/- STEPPER (matches your other fields)
+   - does NOT change the input's outer size
+========================================================= */
         .stepper-input {
             position: relative;
-            display: flex;
-            align-items: center;
+            width: 100%;
         }
 
         .stepper-input input {
             width: 100%;
-            padding-right: 52px;
-            /* room for buttons */
+            padding-right: 70px !important;
+            /* room for the two buttons */
         }
 
-        .stepper-btns {
+        .stepper-input .stepper-btns {
             position: absolute;
             right: 6px;
             top: 50%;
             transform: translateY(-50%);
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            gap: 6px;
         }
 
-        .stepper-btn {
-            width: 34px;
-            height: 22px;
-            line-height: 18px;
-            border-radius: 6px;
+        .stepper-input .stepper-btn {
+            width: 30px;
+            height: 30px;
+            /* tap-friendly without changing input height */
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #222;
+            font-size: 18px;
+            line-height: 1;
             cursor: pointer;
-            user-select: none;
+            padding: 0;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .stepper-input .stepper-btn:active {
+            transform: scale(0.98);
         }
     </style>
 
@@ -1215,7 +1227,7 @@
 
 
                         <!-- drawer width controls (shown/hidden by JS) -->
-                        <div id="drawerWidthSingleField" class="form-group">
+                        <div id="drawerWidthSingleField" class="field md">
                             <label for="drawerWidthSingle">drawer width (in)</label>
                             <div class="stepper-input" data-step="0.25">
                                 <input id="drawerWidthSingle" type="number" min="1" step="0.25" placeholder="auto" />
@@ -1228,7 +1240,7 @@
                             </div>
                         </div>
 
-                        <div id="drawerWidthOuterField" class="form-group">
+                        <div id="drawerWidthOuterField" class="field md">
                             <label for="drawerWidthOuter">outer drawer width (in)</label>
                             <div class="stepper-input" data-step="0.25">
                                 <input id="drawerWidthOuter" type="number" min="1" step="0.25" placeholder="auto" />
@@ -1241,7 +1253,7 @@
                             </div>
                         </div>
 
-                        <div id="drawerWidthCenterField" class="form-group">
+                        <div id="drawerWidthCenterField" class="field md">
                             <label for="drawerWidthCenter">center drawer width (in)</label>
                             <div class="stepper-input" data-step="0.25">
                                 <input id="drawerWidthCenter" type="number" min="1" step="0.25" placeholder="auto" />
@@ -1254,7 +1266,7 @@
                             </div>
                         </div>
 
-                        <div id="drawerWidthTwoSectionField" class="form-group">
+                        <div id="drawerWidthTwoSectionField" class="field md">
                             <label for="drawerWidthTwoSection">drawer width (in)</label>
                             <div class="stepper-input" data-step="0.25">
                                 <input id="drawerWidthTwoSection" type="number" min="1" step="0.25"
