@@ -966,6 +966,38 @@
         #sidebar .nav-item.active {
             background: #f5f6f8;
         }
+
+        /* ===== stepper inputs (drawer widths) ===== */
+        .stepper-input {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .stepper-input input {
+            width: 100%;
+            padding-right: 52px;
+            /* room for buttons */
+        }
+
+        .stepper-btns {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stepper-btn {
+            width: 34px;
+            height: 22px;
+            line-height: 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
     </style>
 
 </head>
@@ -1183,25 +1215,59 @@
 
 
                         <!-- drawer width controls (shown/hidden by JS) -->
-                        <div class="field sm" id="drawerWidthSingleField" style="display:none;">
-                            <label>drawer width</label>
-                            <input type="number" id="drawerWidthSingle" step="0.25">
+                        <div id="drawerWidthSingleField" class="form-group">
+                            <label for="drawerWidthSingle">drawer width (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="drawerWidthSingle" type="number" min="1" step="0.25" placeholder="auto" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="field sm" id="drawerWidthOuterField" style="display:none;">
-                            <label>outside drawer width</label>
-                            <input type="number" id="drawerWidthOuter" step="0.25">
+                        <div id="drawerWidthOuterField" class="form-group">
+                            <label for="drawerWidthOuter">outer drawer width (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="drawerWidthOuter" type="number" min="1" step="0.25" placeholder="auto" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="field sm" id="drawerWidthCenterField" style="display:none;">
-                            <label>center drawer width</label>
-                            <input type="number" id="drawerWidthCenter" step="0.25">
+                        <div id="drawerWidthCenterField" class="form-group">
+                            <label for="drawerWidthCenter">center drawer width (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="drawerWidthCenter" type="number" min="1" step="0.25" placeholder="auto" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div id="drawerWidthTwoSectionField" class="field" style="display:none;">
-                            <label>drawer width</label>
-                            <input id="drawerWidthTwoSection" type="number" step="0.25" min="1">
+                        <div id="drawerWidthTwoSectionField" class="form-group">
+                            <label for="drawerWidthTwoSection">drawer width (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="drawerWidthTwoSection" type="number" min="1" step="0.25"
+                                    placeholder="auto" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
 
                     <!-- row 2: bottom detail + toe/open-below height -->
@@ -7631,6 +7697,127 @@
             });
         }
 
+        function setupQuarterInchSteppers() {
+            const wraps = Array.from(document.querySelectorAll(".stepper-input"));
+            if (!wraps.length) return;
+
+            const snapQ = (n) => {
+                const x = Number(n);
+                if (!isFinite(x)) return null;
+                return Math.round(x * 4) / 4;
+            };
+
+            function markDrawerOverride(id) {
+                if (typeof drawerOverrideFlags === "undefined") return;
+                if (id === "drawerWidthSingle") { drawerOverrideFlags.single = true; lastDrawerEdited = "single"; }
+                if (id === "drawerWidthOuter") { drawerOverrideFlags.outer = true; lastDrawerEdited = "outer"; }
+                if (id === "drawerWidthCenter") { drawerOverrideFlags.center = true; lastDrawerEdited = "center"; }
+                if (id === "drawerWidthTwoSection") { drawerOverrideFlags.twoSection = true; lastDrawerEdited = "twoSection"; }
+            }
+
+            // Seed from what is currently DRAWN (model.sections), only when the field is blank
+            function seedFromModel(inputId) {
+                try {
+                    if (typeof computeModel !== "function") return null;
+                    const m = computeModel();
+                    const secs = m?.sections || [];
+                    const n = secs.length;
+                    if (!n) return null;
+
+                    const drawers = secs
+                        .map((sec, idx) => ({ sec, idx }))
+                        .filter(d => d.sec?.role === "drawer");
+
+                    if (!drawers.length) return null;
+
+                    const s = (v) => {
+                        const q = snapQ(v);
+                        return (q != null && q > 0) ? q : null;
+                    };
+
+                    // 2-section layouts w/ 1 drawer
+                    if (inputId === "drawerWidthTwoSection" && n === 2 && drawers.length === 1) {
+                        return s(drawers[0].sec.widthIn);
+                    }
+
+                    // 3-section mixed → single
+                    if (inputId === "drawerWidthSingle" && n === 3) {
+                        return s(drawers[0].sec.widthIn);
+                    }
+
+                    // 5-section (or 3 all drawers) → outer/center
+                    if (n === 5 || (n === 3 && drawers.length === 3)) {
+                        if (inputId === "drawerWidthOuter") {
+                            const outer = drawers.find(d => d.idx === 0) || drawers.find(d => d.idx === n - 1) || drawers[0];
+                            return outer ? s(outer.sec.widthIn) : null;
+                        }
+                        if (inputId === "drawerWidthCenter") {
+                            const center = drawers.find(d => d.idx !== 0 && d.idx !== n - 1) || drawers[0];
+                            return center ? s(center.sec.widthIn) : null;
+                        }
+                    }
+
+                    return null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            // bind once
+            wraps.forEach((wrap) => {
+                if (wrap.dataset.stepperBound === "1") return;
+                wrap.dataset.stepperBound = "1";
+
+                const input = wrap.querySelector("input");
+                if (!input) return;
+
+                const stepAttr = wrap.getAttribute("data-step");
+                const step = (stepAttr != null && stepAttr !== "") ? Number(stepAttr) : 0.25;
+
+                // Snap on blur (only if user typed something)
+                input.addEventListener("blur", () => {
+                    const raw = String(input.value ?? "").trim();
+                    if (raw === "") return;
+
+                    const snapped = snapQ(raw);
+                    if (snapped == null) return;
+
+                    input.value = String(snapped);
+                    markDrawerOverride(input.id);
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                });
+
+                wrap.querySelectorAll(".stepper-btn").forEach((btn) => {
+                    btn.addEventListener("click", (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const dir = Number(btn.getAttribute("data-dir"));
+                        if (!isFinite(dir) || dir === 0) return;
+
+                        // start from current field value, OR if blank, start from what the drawing/model is using
+                        const raw = String(input.value ?? "").trim();
+                        let base = parseFloat(raw);
+
+                        if (!isFinite(base)) {
+                            const seed = seedFromModel(input.id);
+                            base = (seed != null) ? Number(seed) : NaN;
+                        }
+                        if (!isFinite(base)) base = 0;
+
+                        const next = base + dir * (isFinite(step) && step > 0 ? step : 0.25);
+                        const snapped = snapQ(next);
+                        if (snapped == null) return;
+
+                        input.value = String(snapped);
+                        markDrawerOverride(input.id);
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                    });
+                });
+            });
+        }
+
+
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
             const toggleBtn = document.getElementById("mobile-minimize-button");   // ✅ matches your HTML
@@ -7711,7 +7898,9 @@
         window.addEventListener("load", () => {
             setupDrawingEngine();
             setupMobileDrawingGestures();
+            setupQuarterInchSteppers(); // ← ADD THIS LINE
         });
+
 
 
 
