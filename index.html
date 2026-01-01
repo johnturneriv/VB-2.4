@@ -7219,17 +7219,15 @@
 
                     // layout changes reset drawer overrides
                     if (
-                        (id === "width" ||
-                            id === "sinkCount" ||
-                            id === "layoutPreset" ||
-                            id === "sinkPosition") &&
-                        evt.type === "change"
+                        id === "width" ||
+                        id === "sinkCount" ||
+                        id === "layoutPreset" ||
+                        id === "sinkPosition"
                     ) {
                         drawerOverrideFlags.single = false;
                         drawerOverrideFlags.outer = false;
                         drawerOverrideFlags.center = false;
                         drawerOverrideFlags.twoSection = false;
-
 
                         if (singleInput) singleInput.value = "";
                         if (outerInput) outerInput.value = "";
