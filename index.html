@@ -2662,14 +2662,13 @@
             // Decide which control is active
             // -----------------------------
             const targets = {}; // idx -> desired width
-
             let appliedAny = false;
 
             // 2-section: dedicated field
             if (sectionCount === 2 && drawerOverrideFlags?.twoSection) {
                 const desired = readDrawerInput("drawerWidthTwoSection");
                 if (desired != null) {
-                    const adj = adjustableIdx[0]; // there should be exactly one adjustable bay when sink exists
+                    const adj = adjustableIdx[0];
                     targets[adj] = Math.max(MIN_W, desired);
                     appliedAny = true;
                 }
@@ -2778,10 +2777,7 @@
             protectedIdx.forEach(i => protWidths[i] = MIN_SINK_W);
 
             let remaining = protectedTotal - protectedMinTotal;
-            if (remaining < -1e-6) {
-                // numerical weirdness; bail safely
-                return sections;
-            }
+            if (remaining < -1e-6) return sections;
 
             // Distribute remaining proportionally by current (width - min)
             const weights = protectedIdx.map(i => {
@@ -2795,7 +2791,6 @@
                     protWidths[i] = snapQuarter(MIN_SINK_W + remaining * (weights[k] / weightSum));
                 });
             } else {
-                // If all weights are zero, split evenly
                 const add = remaining / protectedIdx.length;
                 protectedIdx.forEach(i => {
                     protWidths[i] = snapQuarter(MIN_SINK_W + add);
@@ -2813,9 +2808,76 @@
                 sections[i].widthIn = protWidths[i];
             });
 
+            // ============================================================
+            // CRITICAL: reconcile total width in 1/4" units so we never drift
+            // This prevents "every other click" shifting + leg overlap.
+            // ============================================================
+            const targetUnits = Math.round(totalWidth * 4);
+
+            const minAdjUnits = Math.round(MIN_W * 4);
+            const minSinkUnits = Math.round(MIN_SINK_W * 4);
+
+            const units = sections.map(s => Math.round((s.widthIn || 0) * 4));
+            let sumUnits = units.reduce((a, b) => a + b, 0);
+            let delta = targetUnits - sumUnits; // >0 means we need to ADD units somewhere
+
+            function canDec(i) {
+                const isProtected = protectedSet.has(i);
+                const minU = isProtected ? minSinkUnits : minAdjUnits;
+                return units[i] > minU;
+            }
+
+            function dec(i) {
+                units[i] -= 1;
+                delta += 1;
+            }
+
+            function inc(i) {
+                units[i] += 1;
+                delta -= 1;
+            }
+
+            // Prefer fixing protected bays first (sink bays are the compensation pool)
+            const protOrder = [...protectedIdx];
+            const adjOrder = [...adjustableIdx];
+
+            // If we need to remove units (delta < 0), remove from protected bays with room, then adjustable
+            while (delta < 0) {
+                let changed = false;
+
+                for (const i of protOrder) {
+                    if (!canDec(i)) continue;
+                    dec(i);
+                    changed = true;
+                    if (delta === 0) break;
+                }
+
+                if (delta === 0) break;
+
+                if (!changed) {
+                    for (const i of adjOrder) {
+                        if (!canDec(i)) continue;
+                        dec(i);
+                        changed = true;
+                        if (delta === 0) break;
+                    }
+                }
+
+                if (!changed) break; // can't reconcile without breaking mins
+            }
+
+            // If we need to add units (delta > 0), add to the first protected bay
+            while (delta > 0) {
+                inc(protOrder[0]);
+            }
+
+            // Write back reconciled widths
+            for (let i = 0; i < sections.length; i++) {
+                sections[i].widthIn = units[i] / 4;
+            }
+
             return sections;
         }
-
 
 
         // 2-SECTION LAYOUT OVERRIDE (drawer bay + other bay)
