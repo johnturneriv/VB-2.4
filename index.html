@@ -2623,11 +2623,13 @@
 
             const sectionCount = sections.length;
 
-            // helper: snap to nearest 1/4"
-            function snapQuarter(val) {
+            // snap helpers
+            function snapTo(val, denom) {
                 if (!val || !isFinite(val)) return 0;
-                return Math.round(val * 4) / 4;
+                return Math.round(val * denom) / denom;
             }
+            const snapQuarter = (v) => snapTo(v, 4); // user inputs
+            const snapEighth = (v) => snapTo(v, 8); // internal reconciliation
 
             // read a drawer width from an <input> by id, return snapped inches or null
             function readDrawerInput(id) {
@@ -2646,7 +2648,7 @@
 
             // Sink bays are protected; everything else is adjustable
             const sinkIdx = computeSinkSectionIndices(model, sections) || [];
-            if (!sinkIdx.length) return sections; // no sinks → do nothing here
+            if (!sinkIdx.length) return sections;
 
             const protectedSet = new Set(sinkIdx);
             const protectedIdx = sections.map((_, i) => i).filter(i => protectedSet.has(i));
@@ -2654,7 +2656,7 @@
 
             if (!adjustableIdx.length || !protectedIdx.length) return sections;
 
-            // Total interior span is the sum of section widths (gaps are handled elsewhere)
+            // Total interior span is the sum of section widths
             const totalWidth = sections.reduce((sum, s) => sum + (s.widthIn || 0), 0);
             if (!(totalWidth > 0)) return sections;
 
@@ -2741,7 +2743,6 @@
 
             const adjustableMinTotal = adjustableIdx.length * MIN_W;
             if (maxAdjustableTotal < adjustableMinTotal - 1e-6) {
-                // Not feasible; don’t mangle layout
                 return sections;
             }
 
@@ -2772,84 +2773,94 @@
             // -----------------------------
             const protectedTotal = totalWidth - adjustableTotal;
 
-            // Start with minimums
+            // If exactly two protected bays (double sinks), start them equal
+            const forceEqualProtected = (protectedIdx.length === 2 && (model.sinkCount || 0) === 2);
+
             const protWidths = {};
-            protectedIdx.forEach(i => protWidths[i] = MIN_SINK_W);
-
-            let remaining = protectedTotal - protectedMinTotal;
-            if (remaining < -1e-6) return sections;
-
-            // Distribute remaining proportionally by current (width - min)
-            const weights = protectedIdx.map(i => {
-                const cur = sections[i].widthIn || 0;
-                return Math.max(0, cur - MIN_SINK_W);
-            });
-            const weightSum = weights.reduce((a, b) => a + b, 0);
-
-            if (weightSum > 1e-6) {
-                protectedIdx.forEach((i, k) => {
-                    protWidths[i] = snapQuarter(MIN_SINK_W + remaining * (weights[k] / weightSum));
-                });
+            if (forceEqualProtected) {
+                const each = snapEighth(protectedTotal / 2);
+                protWidths[protectedIdx[0]] = each;
+                protWidths[protectedIdx[1]] = each;
             } else {
-                const add = remaining / protectedIdx.length;
-                protectedIdx.forEach(i => {
-                    protWidths[i] = snapQuarter(MIN_SINK_W + add);
+                // Start with minimums
+                protectedIdx.forEach(i => protWidths[i] = MIN_SINK_W);
+
+                let remaining = protectedTotal - protectedMinTotal;
+                if (remaining < -1e-6) return sections;
+
+                // Distribute remaining proportionally by current (width - min)
+                const weights = protectedIdx.map(i => {
+                    const cur = sections[i].widthIn || 0;
+                    return Math.max(0, cur - MIN_SINK_W);
                 });
+                const weightSum = weights.reduce((a, b) => a + b, 0);
+
+                if (weightSum > 1e-6) {
+                    protectedIdx.forEach((i, k) => {
+                        protWidths[i] = snapEighth(MIN_SINK_W + remaining * (weights[k] / weightSum));
+                    });
+                } else {
+                    const add = remaining / protectedIdx.length;
+                    protectedIdx.forEach(i => {
+                        protWidths[i] = snapEighth(MIN_SINK_W + add);
+                    });
+                }
             }
 
-            // -----------------------------
             // Apply widths back to sections (NO xIn here)
-            // -----------------------------
             adjustableIdx.forEach(i => {
                 sections[i].widthIn = targets[i];
             });
-
             protectedIdx.forEach(i => {
                 sections[i].widthIn = protWidths[i];
             });
 
             // ============================================================
-            // CRITICAL: reconcile total width in 1/4" units so we never drift
-            // This prevents "every other click" shifting + leg overlap.
+            // CRITICAL: reconcile total width in 1/8" units so we never drift
+            // and so 1/4" changes can split as 1/8"+1/8" across two sinks.
             // ============================================================
-            const targetUnits = Math.round(totalWidth * 4);
+            const denom = 8;
+            const targetUnits = Math.round(totalWidth * denom);
 
-            const minAdjUnits = Math.round(MIN_W * 4);
-            const minSinkUnits = Math.round(MIN_SINK_W * 4);
+            const minAdjUnits = Math.round(MIN_W * denom);
+            const minSinkUnits = Math.round(MIN_SINK_W * denom);
 
-            const units = sections.map(s => Math.round((s.widthIn || 0) * 4));
+            const units = sections.map(s => Math.round((s.widthIn || 0) * denom));
             let sumUnits = units.reduce((a, b) => a + b, 0);
             let delta = targetUnits - sumUnits; // >0 means we need to ADD units somewhere
 
+            function minUnitsFor(i) {
+                return protectedSet.has(i) ? minSinkUnits : minAdjUnits;
+            }
             function canDec(i) {
-                const isProtected = protectedSet.has(i);
-                const minU = isProtected ? minSinkUnits : minAdjUnits;
-                return units[i] > minU;
+                return units[i] > minUnitsFor(i);
             }
 
-            function dec(i) {
-                units[i] -= 1;
-                delta += 1;
-            }
+            function dec(i) { units[i] -= 1; delta += 1; }
+            function inc(i) { units[i] += 1; delta -= 1; }
 
-            function inc(i) {
-                units[i] += 1;
-                delta -= 1;
-            }
-
-            // Prefer fixing protected bays first (sink bays are the compensation pool)
             const protOrder = [...protectedIdx];
             const adjOrder = [...adjustableIdx];
 
-            // If we need to remove units (delta < 0), remove from protected bays with room, then adjustable
+            // If removing units, remove from protected first (they are the compensation pool), then adjustable
             while (delta < 0) {
                 let changed = false;
 
-                for (const i of protOrder) {
-                    if (!canDec(i)) continue;
-                    dec(i);
-                    changed = true;
-                    if (delta === 0) break;
+                // If two protected bays and we want symmetry, remove alternating so they stay equal-ish
+                if (forceEqualProtected) {
+                    for (const i of protOrder) {
+                        if (!canDec(i)) continue;
+                        dec(i);
+                        changed = true;
+                        if (delta === 0) break;
+                    }
+                } else {
+                    for (const i of protOrder) {
+                        if (!canDec(i)) continue;
+                        dec(i);
+                        changed = true;
+                        if (delta === 0) break;
+                    }
                 }
 
                 if (delta === 0) break;
@@ -2863,17 +2874,34 @@
                     }
                 }
 
-                if (!changed) break; // can't reconcile without breaking mins
+                if (!changed) break;
             }
 
-            // If we need to add units (delta > 0), add to the first protected bay
+            // If adding units, add to protected bays (split evenly when there are two)
             while (delta > 0) {
-                inc(protOrder[0]);
+                if (forceEqualProtected) {
+                    inc(protOrder[0]);
+                    if (delta > 0) inc(protOrder[1]);
+                } else {
+                    inc(protOrder[0]);
+                }
+            }
+
+            // Final symmetry lock if two protected bays
+            if (forceEqualProtected) {
+                const a = protOrder[0], b = protOrder[1];
+                const avg = Math.floor((units[a] + units[b]) / 2);
+                units[a] = avg;
+                units[b] = (units[a] + units[b]) - avg; // keep sum the same
+                // if we made them uneven by 1 unit, fix by giving 1 unit to the other
+                const diff = units[a] - units[b];
+                if (diff === 1) { units[a] -= 1; units[b] += 1; }
+                if (diff === -1) { units[a] += 1; units[b] -= 1; }
             }
 
             // Write back reconciled widths
             for (let i = 0; i < sections.length; i++) {
-                sections[i].widthIn = units[i] / 4;
+                sections[i].widthIn = units[i] / denom;
             }
 
             return sections;
@@ -3064,7 +3092,9 @@
                 equalSectionWidthIn >= DEFAULT_MIN_SINK_SECTION_WIDTH &&  // 20"
                 !drawerOverrideFlags.single &&
                 !drawerOverrideFlags.outer &&
-                !drawerOverrideFlags.center;
+                !drawerOverrideFlags.center &&
+                !drawerOverrideFlags.twoSection; // ✅ IMPORTANT
+
 
             if (canUseEqualSections) {
                 const sections = [];
@@ -3084,7 +3114,21 @@
                     }
                 }
                 applyDrawerWidthOverrides(model, sections);
+
+                // ✅ Rebuild x-positions now that widths may have changed
+                let runX = interiorStartIn;
+                for (let i = 0; i < sections.length; i++) {
+                    const sec = sections[i];
+                    sec.xIn = runX;
+                    runX += sec.widthIn;
+
+                    if (i < sections.length - 1) {
+                        runX += gapWidthIn;  // same stile width / 0 if removeStiles
+                    }
+                }
+
                 return sections;
+
             }
 
 
