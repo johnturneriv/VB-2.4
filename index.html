@@ -7868,6 +7868,7 @@
             };
         }
 
+
         function setupMobileDrawingGestures() {
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
@@ -7905,9 +7906,12 @@
                     return;
                 }
 
-                // 2-finger pinch + pan midpoint
+                // 2-finger pinch + pan (ZOOM AROUND MIDPOINT like Photos)
                 if (e.touches.length === 2) {
                     e.preventDefault();
+
+                    const rect = svg.getBoundingClientRect();
+                    if (!rect.width || !rect.height) return;
 
                     const newDist = getTouchDistance(e.touches[0], e.touches[1]);
                     const newMid = getTouchMidpoint(e.touches[0], e.touches[1]);
@@ -7918,12 +7922,28 @@
                         return;
                     }
 
-                    const scaleDelta = newDist / lastTouchDist;
-                    mobileScale *= scaleDelta;
-                    mobileScale = Math.max(0.5, Math.min(3, mobileScale));
+                    // Midpoints in element-local pixels
+                    const lastMidLocal = {
+                        x: lastTouchMid.x - rect.left,
+                        y: lastTouchMid.y - rect.top
+                    };
+                    const newMidLocal = {
+                        x: newMid.x - rect.left,
+                        y: newMid.y - rect.top
+                    };
 
-                    mobileTranslateX += (newMid.x - lastTouchMid.x);
-                    mobileTranslateY += (newMid.y - lastTouchMid.y);
+                    // What content point (untransformed) was under the last midpoint?
+                    const uX = (lastMidLocal.x - mobileTranslateX) / mobileScale;
+                    const uY = (lastMidLocal.y - mobileTranslateY) / mobileScale;
+
+                    // New scale (clamped)
+                    const scaleDelta = newDist / lastTouchDist;
+                    const nextScale = Math.max(0.5, Math.min(3, mobileScale * scaleDelta));
+
+                    // Set translate so that SAME content point stays under the NEW midpoint
+                    mobileTranslateX = newMidLocal.x - (uX * nextScale);
+                    mobileTranslateY = newMidLocal.y - (uY * nextScale);
+                    mobileScale = nextScale;
 
                     lastTouchDist = newDist;
                     lastTouchMid = newMid;
@@ -7942,6 +7962,7 @@
                 }
             });
         }
+
 
         function setupQuarterInchSteppers() {
             const wraps = Array.from(document.querySelectorAll(".stepper-input"));
