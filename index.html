@@ -5604,12 +5604,8 @@
             return document.getElementById("vanityDrawing");
         }
 
-
         function computeDrawingScale(svg, model) {
-            const {
-                widthIn,
-                heightIn
-            } = model;
+            const { widthIn, heightIn } = model;
 
             const svgRect = svg.getBoundingClientRect();
             const svgW = svgRect.width;
@@ -5627,28 +5623,29 @@
             const contentWIn = widthIn + MARGIN_SIDE_IN * 2;
             const contentHIn = heightIn + MARGIN_TOP_IN + MARGIN_BOTTOM_IN;
 
-            // Fit scale so NOTHING clips
-            const fitPxPerInch = Math.min(
-                svgW / contentWIn,
-                svgH / contentHIn
-            );
+            // ✅ KEY CHANGE:
+            // Fit ONLY by HEIGHT so long vanities do NOT shrink.
+            const fitPxPerInchByHeight = svgH / contentHIn;
 
             // Final scale (never exceed base unless SVG is huge)
-            const px = Math.min(BASE_PX_PER_INCH, fitPxPerInch);
+            const px = Math.min(BASE_PX_PER_INCH, fitPxPerInchByHeight);
 
-            // Center cabinet inside SVG
-            const originX =
-                (svgW - widthIn * px) / 2;
-
-            const originY =
-                MARGIN_TOP_IN * px;
+            // ✅ KEY CHANGE:
+            // Anchor to left margin (so the left end is visible and the rest can scroll)
+            const originX = MARGIN_SIDE_IN * px;
+            const originY = MARGIN_TOP_IN * px;
 
             return {
                 inchToPx: px,
                 originX,
-                originY
+                originY,
+
+                // optional helpers (safe to ignore by draw code)
+                contentWIn,
+                contentHIn
             };
         }
+
 
         let _drawPending = false;
 
@@ -5684,11 +5681,12 @@
                 const activeSvg = getActiveDrawingSvg();
                 if (!activeSvg) return;
 
-                // Force SVG to follow its container size (prevents occasional wrong viewBox)
-                activeSvg.style.width = "100%";
+                // ✅ Let SVG grow wider than the panel when needed (enables horizontal scroll)
                 activeSvg.style.height = "100%";
+                activeSvg.style.width = "auto";
                 activeSvg.removeAttribute("width");
                 activeSvg.removeAttribute("height");
+
 
                 // If layout isn't settled yet (or svg width doesn't match parent),
                 // skip this draw and retry once on the next frame.
@@ -5701,8 +5699,9 @@
 
                 const looksUnstable =
                     !isFinite(svgW) || svgW <= 0 ||
-                    !isFinite(parentW) || parentW <= 0 ||
-                    Math.abs(svgW - parentW) > 2; // tolerate tiny rounding
+                    !isFinite(parentW) || parentW <= 0;
+
+
 
                 if (looksUnstable && window.__vbLayoutRetry < 1) {
                     window.__vbLayoutRetry += 1;
