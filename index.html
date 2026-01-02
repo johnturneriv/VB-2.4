@@ -1034,7 +1034,7 @@
             <div class="nav-item active" data-page="page1">your info</div>
             <div class="nav-item" data-page="page2">vanity details</div>
             <div class="nav-item" data-page="page3">layout & style</div>
-            <div class="nav-item" data-page="page4">more customization</div>
+            <div class="nav-item" data-page="page4">frame sizing</div>
             <div class="nav-item" data-page="page5">materials & finish</div>
             <div class="nav-item" data-page="page6">summary</div>
         </aside>
@@ -1342,7 +1342,7 @@
                 <!-- nav buttons BELOW the card -->
                 <div class="nav-buttons">
                     <button class="back" data-back="page2">back</button>
-                    <button class="next" data-next="page4">next: more customization</button>
+                    <button class="next" data-next="page4">next: frame sizing</button>
                 </div>
             </section>
 
@@ -1350,7 +1350,7 @@
             <!-- PAGE 4 -->
             <section id="page4" class="page">
                 <div class="field-card">
-                    <h2>more customization</h2>
+                    <h2>frame sizing</h2>
 
                     <div class="field-row">
 
@@ -1774,13 +1774,26 @@
             const idx = pagesArr.findIndex(p => p.id === pageId);
             currentPageIndex = idx >= 0 ? idx : 0;
 
+            // ✅ IMMEDIATE scroll reset (mobile browsers sometimes ignore a single delayed call)
+            window.scrollTo(0, 0);
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+
+            const pageContainerNow = document.getElementById("page-container");
+            if (pageContainerNow) pageContainerNow.scrollTop = 0;
+
+            const mobileStepNow = document.getElementById("mobile-step-container");
+            if (mobileStepNow) mobileStepNow.scrollTop = 0;
+
+            syncUIState(pageId);
             updateDrawing();
             syncGlobalNavState();
-            syncUIState(pageId);
 
-            // ✅ ALWAYS START EACH PAGE AT THE TOP
+            // ✅ ALSO reset next frame (covers iOS/Safari + layout shifts)
             requestAnimationFrame(() => {
                 window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
 
                 const pageContainer = document.getElementById("page-container");
                 if (pageContainer) pageContainer.scrollTop = 0;
@@ -1951,6 +1964,11 @@
             if (priceBtn) {
                 const hide = (pageId === "page1" || pageId === "page2");
                 priceBtn.style.display = hide ? "none" : "block";
+            }
+            // --- Page 4: hide stile options for single-section vanities ---
+            if (pageId === "page4") {
+                const model = computeModel();
+                updateStileAndRailControlsVisibility(model);
             }
 
         }
@@ -2166,7 +2184,7 @@
 
             if (allDrawers && model.sinkCount > 0) {
                 breakdown.extras.push({
-                    label: `Drawers under sink ×${model.sinkCount}`,
+                    label: `U shaped drawers under sink ×${model.sinkCount}`,
                     amount: model.sinkCount * PRICING.DRAWERS_UNDER_SINK
                 });
             }
@@ -3572,56 +3590,98 @@
                 return Math.round(n * 4) / 4;
             }
 
-            function safeSet(inputEl, valueIn) {
+            function readVal(inputEl) {
+                if (!inputEl) return 0;
+                const n = Number(inputEl.value);
+                return isFinite(n) ? n : 0;
+            }
+
+            // Write helper:
+            // - never overwrite while typing
+            // - if override is ON, only write when value differs (clamp-to-effective)
+            function safeSet(inputEl, effectiveIn, overrideIsOn) {
                 if (!inputEl) return;
                 if (document.activeElement === inputEl) return; // 🔒 never overwrite while typing
-                const v = snapQuarter(valueIn);
+
+                const v = snapQuarter(effectiveIn);
                 if (v <= 0) return;
-                inputEl.value = String(v);
+
+                const cur = readVal(inputEl);
+                const diff = Math.abs(cur - v);
+
+                // If override is OFF: always seed/refresh
+                // If override is ON: only clamp when it drifted (mins/max hit)
+                if (!overrideIsOn || diff >= 0.125) { // 1/8" threshold prevents jitter
+                    inputEl.value = String(v);
+                }
             }
 
-            const drawerSecs = sections.filter(sec => sec.role === "drawer");
-            const drawerCount = drawerSecs.length;
-            const allDrawers = drawerCount === sectionCount;
+            // --------------------------------------------
+            // Effective widths come from "adjustable bays"
+            // (non-sink bays). Sink bays are protected.
+            // --------------------------------------------
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            const protectedSet = new Set(sinkIdx);
 
-            // === 2-SECTION (exactly 1 drawer) → seed drawerWidthTwoSection unless user override ===
+            const adjustableIdx = sections
+                .map((_, i) => i)
+                .filter(i => !protectedSet.has(i));
+
+            // If no sinks / no adjustable bays, keep existing behavior (do nothing)
+            if (!sinkIdx.length || !adjustableIdx.length) return;
+
+            function avgWidth(indices) {
+                if (!indices.length) return 0;
+                const sum = indices.reduce((a, i) => a + (sections[i]?.widthIn || 0), 0);
+                return sum / indices.length;
+            }
+
+            // === 2-SECTION → use adjustable bay ===
             if (sectionCount === 2 && twoSectionInput) {
-                if (drawerOverrideFlags?.twoSection && initialDrawDone) {
-                    return; // user owns it now
-                }
-                if (drawerSecs.length === 1) {
-                    // seed/refresh only when NOT focused and NOT user-owned
-                    safeSet(twoSectionInput, drawerSecs[0].widthIn);
-                }
+                const eff = avgWidth(adjustableIdx.slice(0, 1));
+                const overrideOn = !!(drawerOverrideFlags?.twoSection && initialDrawDone);
+                safeSet(twoSectionInput, eff, overrideOn);
                 return;
             }
 
-            // === 3-SECTION mixed → single ===
-            if (sectionCount === 3 && !allDrawers) {
+            // === 3-SECTION → single uses adjustable bays average ===
+            if (sectionCount === 3) {
                 if (!singleInput) return;
-                if (drawerOverrideFlags?.single && initialDrawDone) return;
-                if (!drawerSecs.length) return;
-                safeSet(singleInput, drawerSecs[0].widthIn);
+                const eff = avgWidth(adjustableIdx);
+                const overrideOn = !!(drawerOverrideFlags?.single && initialDrawDone);
+                safeSet(singleInput, eff, overrideOn);
                 return;
             }
 
-            // === 3-SECTION all drawers OR 5-SECTION → outer + center ===
-            if (sectionCount === 5 || (sectionCount === 3 && allDrawers)) {
-                const drawers = sections
-                    .map((sec, idx) => ({ sec, idx }))
-                    .filter(d => d.sec.role === "drawer");
+            // === 5-SECTION → outer/center split over adjustable bays ===
+            if (sectionCount === 5) {
+                // Determine adjustable outer vs center by their positions among adjustable bays
+                const minAdj = Math.min(...adjustableIdx);
+                const maxAdj = Math.max(...adjustableIdx);
 
-                if (!drawers.length) return;
+                const outerAdj = adjustableIdx.filter(i => i === minAdj || i === maxAdj);
+                const centerAdj = adjustableIdx.filter(i => i !== minAdj && i !== maxAdj);
 
-                if (outerInput && !(drawerOverrideFlags?.outer && initialDrawDone)) {
-                    const outerDrawers = drawers.filter(d => d.idx === 0 || d.idx === sectionCount - 1);
-                    if (outerDrawers.length) safeSet(outerInput, outerDrawers[0].sec.widthIn);
+                if (outerInput) {
+                    const effOuter = avgWidth(outerAdj.length ? outerAdj : adjustableIdx);
+                    const overrideOn = !!(drawerOverrideFlags?.outer && initialDrawDone);
+                    safeSet(outerInput, effOuter, overrideOn);
                 }
 
-                if (centerInput && !(drawerOverrideFlags?.center && initialDrawDone)) {
-                    const centerDrawers = drawers.filter(d => d.idx !== 0 && d.idx !== sectionCount - 1);
-                    if (centerDrawers.length) safeSet(centerInput, centerDrawers[0].sec.widthIn);
+                if (centerInput) {
+                    const effCenter = avgWidth(centerAdj.length ? centerAdj : adjustableIdx);
+                    const overrideOn = !!(drawerOverrideFlags?.center && initialDrawDone);
+                    safeSet(centerInput, effCenter, overrideOn);
                 }
+
+                return;
+            }
+
+            // fallback: if a weird count slips through, keep single aligned to adjustable avg
+            if (singleInput) {
+                const eff = avgWidth(adjustableIdx);
+                const overrideOn = !!(drawerOverrideFlags?.single && initialDrawDone);
+                safeSet(singleInput, eff, overrideOn);
             }
         }
 
@@ -5597,7 +5657,6 @@
                 updateMobileDrawingVisibility();
 
                 if (!shouldDraw) {
-                    // optional: clear both SVGs so no stale drawing lingers
                     const desktopSvg = document.getElementById("vanityDrawing");
                     if (desktopSvg) desktopSvg.innerHTML = "";
 
@@ -5607,6 +5666,42 @@
                     return;
                 }
 
+                // =====================================================
+                // 🔑 Identify ACTIVE SVG early and ensure stable sizing
+                // =====================================================
+                const activeSvg = getActiveDrawingSvg();
+                if (!activeSvg) return;
+
+                // Force SVG to follow its container size (prevents occasional wrong viewBox)
+                activeSvg.style.width = "100%";
+                activeSvg.style.height = "100%";
+                activeSvg.removeAttribute("width");
+                activeSvg.removeAttribute("height");
+
+                // If layout isn't settled yet (or svg width doesn't match parent),
+                // skip this draw and retry once on the next frame.
+                const parent = activeSvg.parentElement;
+                const svgW = activeSvg.getBoundingClientRect().width;
+                const parentW = parent ? parent.getBoundingClientRect().width : svgW;
+
+                // One-shot retry guard (prevents loops)
+                if (!window.__vbLayoutRetry) window.__vbLayoutRetry = 0;
+
+                const looksUnstable =
+                    !isFinite(svgW) || svgW <= 0 ||
+                    !isFinite(parentW) || parentW <= 0 ||
+                    Math.abs(svgW - parentW) > 2; // tolerate tiny rounding
+
+                if (looksUnstable && window.__vbLayoutRetry < 1) {
+                    window.__vbLayoutRetry += 1;
+                    requestAnimationFrame(() => updateDrawing());
+                    return;
+                }
+                window.__vbLayoutRetry = 0;
+
+                // =====================================================
+                // Normal model → UI sync → drawing
+                // =====================================================
                 const model = computeModel();
                 if (!model) return;
 
@@ -5619,12 +5714,9 @@
                 if (!runModel) return;
 
                 // =====================================================
-                // 🔑 Draw into the ACTIVE SVG, even if draw code
+                // Draw into the ACTIVE SVG, even if draw code
                 // still hard-codes "vanityDrawing"
                 // =====================================================
-                const activeSvg = getActiveDrawingSvg();
-                if (!activeSvg) return;
-
                 const desktopSvg = document.getElementById("vanityDrawing");
                 const mobileSvg = document.getElementById("mobileVanityDrawing");
 
@@ -5656,6 +5748,7 @@
                 updatePriceDisplay(model);
             });
         }
+
 
         function drawVanityAtX(svg, model, offsetX) {
             const originalX = model.scale.originX;
@@ -6958,55 +7051,56 @@
             const railsModeSel = document.getElementById("drawerRailsMode");
             const railHeightField = document.getElementById("drawerRailHeightField");
 
-            if (!removeStilesField || !stileWidthField || !railsModeField || !railsModeSel || !railHeightField) {
-                return;
-            }
-
+            // ✅ Always enforce the simplest rule first:
+            // Single-section → stile UI does not apply.
             if (isSingleSection) {
-                // 1-section vanity: no stiles UI, rails allowed
-                removeStilesField.style.display = "none";
-                stileWidthField.style.display = "none";
+                if (removeStilesField) removeStilesField.style.display = "none";
+                if (stileWidthField) stileWidthField.style.display = "none";
 
-                railsModeField.style.display = "";
-                const mode = railsModeSel.value || "none";
-                railHeightField.style.display = (mode === "none") ? "none" : "";
+                // rails are allowed; only show if the fields exist
+                if (railsModeField) railsModeField.style.display = "";
+                if (railsModeSel && railHeightField) {
+                    const mode = railsModeSel.value || "none";
+                    railHeightField.style.display = (mode === "none") ? "none" : "";
+                }
                 return;
             }
 
             // multi-section vanity
-            removeStilesField.style.display = "";
+            if (removeStilesField) removeStilesField.style.display = "";
 
-            const stilesRemoved = removeStilesSel && removeStilesSel.value === "true";
+            const stilesRemoved = (removeStilesSel && removeStilesSel.value === "true");
 
-            // 🔒 HARD RULE:
-            // multi-section + no stiles → rails MUST be none
-            if (!isSingleSection && stilesRemoved) {
+            // 🔒 HARD RULE: multi-section + no stiles → rails MUST be none
+            if (stilesRemoved && railsModeSel) {
                 if (railsModeSel.value !== "none") {
                     railsModeSel.value = "none";
                 }
             }
 
-
             // stile width visible only when stiles are present
-            stileWidthField.style.display = stilesRemoved ? "none" : "";
+            if (stileWidthField) {
+                stileWidthField.style.display = stilesRemoved ? "none" : "";
+            }
 
             const drawerRailsNote = document.getElementById("drawerRailsNote");
             if (drawerRailsNote) {
                 drawerRailsNote.style.display =
-                    (!isSingleSection && stilesRemoved && railsModeBeforeStilesOff !== "none")
+                    (stilesRemoved && railsModeBeforeStilesOff !== "none")
                         ? "block"
                         : "none";
             }
 
-
             // rails controls only meaningful when we have stiles
             if (stilesRemoved) {
-                railsModeField.style.display = "none";
-                railHeightField.style.display = "none";
+                if (railsModeField) railsModeField.style.display = "none";
+                if (railHeightField) railHeightField.style.display = "none";
             } else {
-                railsModeField.style.display = "";
-                const mode = railsModeSel.value || "none";
-                railHeightField.style.display = (mode === "none") ? "none" : "";
+                if (railsModeField) railsModeField.style.display = "";
+                if (railsModeSel && railHeightField) {
+                    const mode = railsModeSel.value || "none";
+                    railHeightField.style.display = (mode === "none") ? "none" : "";
+                }
             }
         }
 
@@ -7566,6 +7660,41 @@
 
             });
 
+            // =====================================================
+            // 🔒 MOBILE SCROLL: prevent restore-to-middle on load/back
+            // =====================================================
+            if (!window.__vbScrollInit) {
+                window.__vbScrollInit = true;
+
+                // stop browser from restoring old scroll position (mobile Safari especially)
+                if ("scrollRestoration" in history) {
+                    history.scrollRestoration = "manual";
+                }
+
+                const resetAllScroll = () => {
+                    window.scrollTo(0, 0);
+                    document.documentElement.scrollTop = 0;
+                    document.body.scrollTop = 0;
+
+                    const pageContainer = document.getElementById("page-container");
+                    if (pageContainer) pageContainer.scrollTop = 0;
+
+                    const mobileStep = document.getElementById("mobile-step-container");
+                    if (mobileStep) mobileStep.scrollTop = 0;
+                };
+
+                // initial load
+                window.addEventListener("load", () => {
+                    resetAllScroll();
+                    requestAnimationFrame(resetAllScroll);
+                });
+
+                // back/forward cache restore
+                window.addEventListener("pageshow", () => {
+                    resetAllScroll();
+                    requestAnimationFrame(resetAllScroll);
+                });
+            }
 
 
 
