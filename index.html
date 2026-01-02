@@ -32,6 +32,11 @@
             /* prevent sideways scroll */
         }
 
+        :root {
+            --desktop-drawing-height: 520px;
+            /* <-- DESKTOP DRAWING SIZE DIAL */
+        }
+
         /* =========================================================
        FIELD SYSTEM
     ========================================================= */
@@ -662,7 +667,7 @@
         #drawing-panel #vanityDrawing {
             display: block;
             width: auto;
-            height: 420px;
+            height: var(--desktop-drawing-height);
             max-height: 70vh;
             background: #fff;
             position: relative;
@@ -2058,14 +2063,14 @@ recommended height is 30&quot; off the floor.">?</button>
 
 
         const STROKE = .6;  // master line thickness
-        const DRAWING_SCALE = 1.1; // 1 = current size, <1 smaller, >1 bigger
+
         const STRUCTURE_COLOR = "#000";     // Cabinet frame, legs, rails, etc.
         const DIM_COLOR = "#777";           // VB1-style gray for dim lines + ticks
         const DIM_STROKE = 0.6;         // thinner lines for dims / floor
-        const DASH_PATTERN = "2 2";     // slightly tighter dash than VB1
+        const DASH_PATTERN = "3 3";     // slightly tighter dash than VB1
         const SINK_COLOR = "#1a73e8";   // blue for sinks + sink dims
         const SINK_STROKE = 0.5;        // a little thinner than structure lines
-        const SINK_DASH = "2 2";        // dashed outline for sinks
+        const SINK_DASH = "3 3";        // dashed outline for sinks
         const FLOAT_TOP_HEIGHT_IN = 34;
 
 
@@ -6033,7 +6038,7 @@ recommended height is 30&quot; off the floor.">?</button>
             const MARGIN_SIDE_IN = 6;
 
             // Base px per inch (visual preference)
-            const BASE_PX_PER_INCH = 7.0;
+            const BASE_PX_PER_INCH = 8.0;
 
             // Cabinet bounds (in inches)
             const contentWIn = widthIn + MARGIN_SIDE_IN * 2;
@@ -6590,6 +6595,10 @@ recommended height is 30&quot; off the floor.">?</button>
             if (!sections.length || !sinkCount || !scale || !widthIn) return;
 
             const px = scale.inchToPx;
+            // DIM UI SCALE DIAL (scales text + arrowheads with the drawing)
+            const DIM_UI_BASE_PX_PER_INCH = 6;
+            const dimUiScale = Math.max(0.75, px / DIM_UI_BASE_PX_PER_INCH);
+
             const ox = scale.originX;
             const oy = scale.originY;
 
@@ -6611,8 +6620,9 @@ recommended height is 30&quot; off the floor.">?</button>
             // draw the little V-shaped arrowheads like in your CAD screenshot
             function drawArrowHead(x, y, dir) {
                 // dir = +1 (arrow points right) or -1 (arrow points left)
-                const len = 4;   // arrow reach
-                const spread = 2;
+                const len = 4 * dimUiScale;   // arrow reach (scales with drawing)
+                const spread = 2 * dimUiScale;
+
 
                 const line1 = document.createElementNS(ns, "line");
                 line1.setAttribute("x1", x);
@@ -6654,8 +6664,9 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 const text = document.createElementNS(ns, "text");
                 text.setAttribute("x", midX);
-                text.setAttribute("y", sinkDimY - 9);
-                text.setAttribute("font-size", "10");
+                text.setAttribute("y", sinkDimY - 9 * dimUiScale);
+                text.setAttribute("font-size", String(10 * dimUiScale));
+
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("dominant-baseline", "middle");
                 text.setAttribute("fill", SINK_COLOR);
@@ -6854,7 +6865,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 const label = document.createElementNS(ns, "text");
                 label.setAttribute("x", (floorX1 + floorX2) / 2);
                 label.setAttribute("y", labelY);
-                label.setAttribute("font-size", "10");
+                label.setAttribute("font-size", "12");
                 label.setAttribute("text-anchor", "middle");
                 label.setAttribute("dominant-baseline", "middle");
                 label.textContent = "open below";
@@ -6878,7 +6889,7 @@ recommended height is 30&quot; off the floor.">?</button>
             const label = document.createElementNS(ns, "text");
             label.setAttribute("x", (floorX1 + floorX2) / 2);
             label.setAttribute("y", labelY);
-            label.setAttribute("font-size", "10");
+            label.setAttribute("font-size", "12");
             label.setAttribute("text-anchor", "middle");
             label.setAttribute("dominant-baseline", "middle");
             label.textContent = `${toeKickHeightIn}" toe kick`;
@@ -6903,6 +6914,12 @@ recommended height is 30&quot; off the floor.">?</button>
             } = model;
 
             const px = scale.inchToPx;
+            // DIM UI SCALE DIAL (scales text + ticks with the drawing)
+            // If your "normal" drawing px is ~9, this keeps the look consistent.
+            // Increase 9 -> 10/11 to make dim UI relatively smaller. Decrease to make it bigger.
+            const DIM_UI_BASE_PX_PER_INCH = 6;
+            const dimUiScale = Math.max(0.75, px / DIM_UI_BASE_PX_PER_INCH);
+
 
             const geom = computeGeometry(model);
             const { openTopY, openBottomY, cabBottomY } = geom.vertical;
@@ -6944,7 +6961,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 const t = document.createElementNS(ns, "text");
                 t.setAttribute("x", x);
                 t.setAttribute("y", y);
-                t.setAttribute("font-size", "10"); // dim font
+                t.setAttribute("font-size", String(10 * dimUiScale)); // scales with drawing
                 t.setAttribute("text-anchor", anchor);          // <- use param
                 t.setAttribute("dominant-baseline", "middle");
                 t.setAttribute("fill", DIM_COLOR);
@@ -6954,7 +6971,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
             // dashed vertical tick centered on dim line
             const createVerticalTick = (x, dimY) => {
-                const tickLen = 6;
+                const tickLen = 6 * dimUiScale;
                 const half = tickLen / 2;
                 const pattern = "2 2";
 
@@ -6981,7 +6998,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
             // dashed horizontal tick centered on dim line
             const createHorizontalTick = (dimX, y) => {
-                const tickLen = 6;
+                const tickLen = 6 * dimUiScale;
                 const half = tickLen / 2;
                 const pattern = "2 2";
 
