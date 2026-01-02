@@ -5800,6 +5800,14 @@
 
             clearSvg(svg);
 
+            // =========================================================
+            // STABLE TRANSFORM TARGET (prevents midpoint drift + snapping)
+            // =========================================================
+            const ns = "http://www.w3.org/2000/svg";
+            const viewportG = document.createElementNS(ns, "g");
+            viewportG.setAttribute("id", "mobileViewport");
+            svg.appendChild(viewportG);
+
             // 🔒 APPLY VIEWPORT SCALE (ONCE)
             runModel.objects.forEach(obj => {
                 if (obj.model) {
@@ -5852,7 +5860,6 @@
             const TOP_GUTTER_PX =
                 (SINK_DIM_OFFSET_IN + 7) * effectivePx;  // ⬅ extra safety space above first dim chain
 
-
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
             // -------------------------------
@@ -5868,7 +5875,8 @@
                 obj.model.scale.originX = LEFT_GUTTER_PX;
                 obj.model.scale.originY = TOP_GUTTER_PX;
 
-                drawVanityAtX(svg, obj.model, cursorX);
+                // ✅ draw INTO the wrapper group (not the svg)
+                drawVanityAtX(viewportG, obj.model, cursorX);
 
                 cursorX += obj.model.widthIn * effectivePx + GAP_PX;
             });
@@ -5906,7 +5914,6 @@
                 });
             }
         }
-
 
 
         // DRAW PIPELINE
@@ -7792,49 +7799,24 @@
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            const svg = document.getElementById("vanityDrawing");
+            const svg = getActiveDrawingSvg ? getActiveDrawingSvg() : document.getElementById("vanityDrawing");
             if (!svg) return;
 
             const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+            // Prefer stable wrapper if present
+            const g = svg.querySelector("#mobileViewport");
+            const target = g || svg;
+
             if (!isMobile) {
-                svg.style.transform = "";
-                svg.style.transformOrigin = "";
+                target.style.transform = "";
+                target.style.transformOrigin = "";
                 return;
             }
 
-            const rect = svg.getBoundingClientRect();
-
-            const vb = (svg.viewBox && svg.viewBox.baseVal) ? svg.viewBox.baseVal : null;
-            if (!vb || !vb.width || !vb.height || !rect.width || !rect.height) return;
-
-            // Convert SVG user units -> screen px for this element size
-            const uxToPx = rect.width / vb.width;
-            const uyToPx = rect.height / vb.height;
-
-            // Use the actual drawn content bounds (not the whole viewBox)
-            let bb;
-            try {
-                bb = svg.getBBox();
-            } catch (e) {
-                bb = null;
-            }
-            if (!bb || !bb.width || !bb.height) return;
-
-            // Auto-center ONLY when at default state
-            if (mobileScale === 1 && mobileTranslateX === 0 && mobileTranslateY === 0) {
-                const contentWpx = bb.width * uxToPx * mobileScale;
-                const contentHpx = bb.height * uyToPx * mobileScale;
-
-                const contentLeftPx = bb.x * uxToPx * mobileScale;
-                const contentTopPx = bb.y * uyToPx * mobileScale;
-
-                mobileTranslateX = (rect.width - contentWpx) / 2 - contentLeftPx;
-                mobileTranslateY = (rect.height - contentHpx) / 2 - contentTopPx;
-            }
-
-            // IMPORTANT: origin 0,0 so our midpoint anchoring math is stable
-            svg.style.transformOrigin = "0 0";
-            svg.style.transform =
+            // IMPORTANT: stable origin so midpoint math stays correct
+            target.style.transformOrigin = "0 0";
+            target.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
 
