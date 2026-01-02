@@ -70,6 +70,224 @@
             /* prevent wrapping */
         }
 
+        /* allow wrapping for labels that include help icons */
+        .field label.label-with-help {
+            white-space: normal;
+            flex-wrap: wrap;
+        }
+
+
+        /* =========================================================
+   HELP ICON + TOOLTIP + MODAL
+========================================================= */
+        .label-with-help {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .help-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+
+            background: transparent;
+            /* no fill */
+            border: 1px solid #1a73e8;
+            /* thin blue outline */
+            color: #1a73e8;
+            /* same blue for ? */
+
+            font-size: 12px;
+            font-weight: 600;
+            font-style: normal;
+            line-height: 1;
+
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            cursor: pointer;
+            padding: 0;
+        }
+
+
+
+
+        /* modal shell */
+        .help-modal.hidden {
+            display: none;
+        }
+
+        .help-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+        }
+
+        .help-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        .help-modal-card {
+            position: relative;
+            max-width: 420px;
+            width: calc(100% - 28px);
+            margin: 90px auto;
+            background: #fff;
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .help-modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: lowercase;
+            margin: 0 0 10px 0;
+        }
+
+        .help-modal-body {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.4;
+
+            text-align: center;
+            /* center under image */
+            margin: 0;
+        }
+
+
+        .help-modal-img {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            margin: 10px 0 10px 0;
+            border: 1px solid #e5e7eb;
+            display: none;
+            /* shown only when we have an image */
+        }
+
+        .help-modal-close {
+            margin-top: 12px;
+            width: 100%;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            background: #f3f4f6;
+            color: #111827;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: lowercase;
+        }
+
+        /* help modal: allow scrolling when content is tall */
+        .help-modal-card {
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+
+        /* gallery layout */
+        .help-gallery {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .help-style {
+            text-align: center;
+        }
+
+        .help-style-img {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            display: block;
+            margin: 0 auto 8px auto;
+        }
+
+        .help-style-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: lowercase;
+            margin-bottom: 6px;
+        }
+
+        .help-style-notes {
+            margin: 0 auto;
+            padding-left: 18px;
+            text-align: left;
+            max-width: 360px;
+            color: #374151;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .help-style-link {
+            display: inline-block;
+            text-align: center;
+            color: #1a73e8;
+            text-decoration: underline;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        /* center modal title */
+        .help-modal-title {
+            text-align: center;
+        }
+
+        /* style titles above each image */
+        .help-style-title {
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: lowercase;
+            margin-bottom: 6px;
+        }
+
+        /* keep bullet lists consistent */
+        .help-style-notes {
+            margin: 0 auto;
+            padding-left: 18px;
+            max-width: 360px;
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        /* stacked action buttons inside help modal */
+        .help-modal-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 100%;
+            height: 40px;
+
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            background: #f3f4f6;
+            color: #111827;
+
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: lowercase;
+            text-decoration: none;
+
+            margin-top: 10px;
+        }
+
+        /* primary action (view more examples) */
+        .help-modal-action-primary {
+            background: #ffffff;
+        }
+
+
+
         .field input,
         .field select {
             padding: 9px 12px;
@@ -86,6 +304,32 @@
             -webkit-appearance: none;
             -moz-appearance: none;
         }
+
+        /* placeholder styling (page 2 width/height/depth) */
+        .field input::placeholder {
+            color: #9ca3af;
+            /* light gray */
+            font-style: italic;
+            font-size: 12px;
+            /* smaller than input text */
+        }
+
+        /* Safari/iOS */
+        .field input::-webkit-input-placeholder {
+            color: #9ca3af;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        /* 🔒 Override webkit text fill so placeholder color actually applies */
+        .field input::placeholder {
+            -webkit-text-fill-color: #9ca3af;
+        }
+
+        .field input::-webkit-input-placeholder {
+            -webkit-text-fill-color: #9ca3af;
+        }
+
 
         .field select {
             background-image:
@@ -1094,15 +1338,22 @@
                             <input id="depth" type="number" min="6" step="0.25" placeholder='21–22" is standard'>
                         </div>
 
-
                         <div class="field sm">
-                            <label>sink count</label>
+                            <label class="label-with-help">
+                                sink count
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="sink count"
+                                    data-help-body="single sink or double sink vanity?">?</button>
+                            </label>
+
                             <select id="sinkCount">
                                 <option value="0">0</option>
                                 <option value="1">1</option>
                                 <option value="2">2</option>
                             </select>
                         </div>
+
+
                         <div class="field" id="sinkPositionField" style="display:none;">
                             <label for="sinkPosition">sink position</label>
                             <select id="sinkPosition" name="sinkPosition">
@@ -1117,7 +1368,55 @@
                     <!-- row 2: floating / shelf / makeup -->
                     <div class="field-row">
                         <div class="field">
-                            <label for="doorDrawerPreset">door and drawer style</label>
+                            <label for="doorDrawerPreset" class="label-with-help">
+                                door and drawer style
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="door and drawer styles" data-help-html='
+<div class="help-gallery">
+
+  <div class="help-style">
+    <div class="help-style-title">slab style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/styles.jpeg" alt="slab style" />
+    <ul class="help-style-notes">
+      <li>easy to clean, does not collect dust</li>
+      <li>for stained cabinets: 3/4&quot; cabinet grade plywood for stability</li>
+      <li>for painted cabinets: 3/4&quot; or 1&quot; medex</li>
+      <li>waterproof finish for durability</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/shaker.jpeg" alt="shaker style" />
+    <ul class="help-style-notes">
+      <li>timeless and simple</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>a common profile found on all levels of cabinetry</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">double shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/double%20shaker.jpeg" alt="double shaker style" />
+    <ul class="help-style-notes">
+      <li>my standard profile offered at no up-charge</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>double shaker is only found on fully custom cabinetry</li>
+    </ul>
+  </div>
+
+ <a
+  class="help-modal-action help-modal-action-primary"
+  href="https://www.turnerrossadesigns.com/photo-gallery-1"
+  target="_blank"
+  rel="noopener noreferrer">
+  view more examples (new page)
+</a>
+
+
+</div>'>?</button>
+                            </label>
+
                             <select id="doorDrawerPreset">
                                 <option value="slab">slab</option>
                                 <option value="shaker">shaker</option>
@@ -1128,8 +1427,16 @@
                         </div>
 
 
+
+
                         <div class="field md">
-                            <label>which sides are visible?</label>
+                            <label class="label-with-help">
+                                which sides are visible?
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="visible sides" data-help-body="tell me which sides will be seen.
+sides you cant see after install are not finished.">?</button>
+                            </label>
+
                             <select id="visibleSides">
                                 <option value="none" selected>no sides visible</option>
                                 <option value="left">left side</option>
@@ -1138,17 +1445,17 @@
                             </select>
                         </div>
 
-                        <div class="field">
-                            <label for="visibleSideStyle">visible side style</label>
-                            <select id="visibleSideStyle" name="visibleSideStyle">
-                                <option value="slab" selected>slab</option>
-                                <option value="shaker">shaker</option>
-                                <option value="double-shaker">double shaker</option>
-                            </select>
-                        </div>
+
 
                         <div class="field md">
-                            <label>floating?</label>
+                            <label class="label-with-help">
+                                is this a floating vanity?
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="floating vanity" data-help-body="this option makes the vanity appear to &quot;float&quot; with no legs.
+NOTE: must be against at least one side wall."
+                                    data-help-img="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/assets/help/floating%20pic.jpg">?</button>
+                            </label>
+
                             <select id="floating">
                                 <option value="false">no</option>
                                 <option value="true">yes</option>
@@ -1156,21 +1463,36 @@
                         </div>
 
                         <div class="field" id="shelfBelowField">
-                            <label for="shelfBelow">add shelf below?</label>
+                            <label for="shelfBelow" class="label-with-help">
+                                add open shelf below?
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="open shelf below" data-help-body="this option adds an open shelf below the vanity.
+it reduces cabinet space but creates visible storage."
+                                    data-help-img="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/assets/help/shelf-below.jpeg">?</button>
+                            </label>
+
                             <select id="shelfBelow">
                                 <option value="no" selected>no</option>
                                 <option value="yes">yes</option>
                             </select>
                         </div>
 
+
                         <!-- MAKEUP DESK -->
                         <div class="field">
-                            <label>makeup desk</label>
+                            <label class="label-with-help">
+                                is there a makeup desk?
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="makeup desk" data-help-body="this option creates a &quot;desk&quot; by adding a shallow drawer with space below
+recommended height is 30&quot; off the floor.">?</button>
+                            </label>
+
                             <select id="makeupDeskEnabled">
                                 <option value="no">no</option>
                                 <option value="yes">yes</option>
                             </select>
                         </div>
+
 
                         <div class="field" id="makeupDeskPositionField" style="display:none;">
                             <label>desk position</label>
@@ -1217,7 +1539,54 @@
                         </div>
 
                         <div class="field md">
-                            <label>door style</label>
+                            <label class="label-with-help">
+                                door style
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="door and drawer styles" data-help-html='
+<div class="help-gallery">
+
+  <div class="help-style">
+    <div class="help-style-title">slab style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/styles.jpeg" alt="slab style" />
+    <ul class="help-style-notes">
+      <li>easy to clean and does not collect dust</li>
+      <li>for stained cabinets: 3/4&quot; cabinet grade plywood for stability</li>
+      <li>for painted cabinets: 3/4&quot; or 1&quot; medex</li>
+      <li>waterproof finish for durability</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/shaker.jpeg" alt="shaker style" />
+    <ul class="help-style-notes">
+      <li>timeless and simple</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>a common profile found on all levels of cabinetry</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">double shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/double%20shaker.jpeg" alt="double shaker style" />
+    <ul class="help-style-notes">
+      <li>my standard profile offered at no up-charge</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>double shaker is only found on fully custom cabinetry</li>
+    </ul>
+  </div>
+
+  <a
+    class="help-modal-action help-modal-action-primary"
+    href="https://www.turnerrossadesigns.com/photo-gallery-1"
+    target="_blank"
+    rel="noopener noreferrer">
+    view more examples
+  </a>
+
+</div>'>?</button>
+                            </label>
+
                             <select id="doorStyle">
                                 <option value="shaker">shaker</option>
                                 <option value="slab">slab</option>
@@ -1226,7 +1595,54 @@
                         </div>
 
                         <div class="field md">
-                            <label>drawer style</label>
+                            <label class="label-with-help">
+                                drawer style
+                                <button type="button" class="help-icon" aria-label="what is this?"
+                                    data-help-title="door and drawer styles" data-help-html='
+<div class="help-gallery">
+
+  <div class="help-style">
+    <div class="help-style-title">slab style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/styles.jpeg" alt="slab style" />
+    <ul class="help-style-notes">
+      <li>easy to clean and does not collect dust</li>
+      <li>for stained cabinets: 3/4&quot; cabinet grade plywood for stability</li>
+      <li>for painted cabinets: 3/4&quot; or 1&quot; medex</li>
+      <li>waterproof finish for durability</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/shaker.jpeg" alt="shaker style" />
+    <ul class="help-style-notes">
+      <li>timeless and simple</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>a common profile found on all levels of cabinetry</li>
+    </ul>
+  </div>
+
+  <div class="help-style">
+    <div class="help-style-title">double shaker style</div>
+    <img class="help-style-img" src="https://raw.githubusercontent.com/johnturneriv/VB-2.4/main/asset/help/double%20shaker.jpeg" alt="double shaker style" />
+    <ul class="help-style-notes">
+      <li>my standard profile offered at no up-charge</li>
+      <li>1&quot; thick, 5 piece construction</li>
+      <li>double shaker is only found on fully custom cabinetry</li>
+    </ul>
+  </div>
+
+  <a
+    class="help-modal-action help-modal-action-primary"
+    href="https://www.turnerrossadesigns.com/photo-gallery-1"
+    target="_blank"
+    rel="noopener noreferrer">
+    view more examples
+  </a>
+
+</div>'>?</button>
+                            </label>
+
                             <select id="drawerStyle">
                                 <option value="slab">slab</option>
                                 <option value="shaker">shaker</option>
@@ -1642,7 +2058,7 @@
 
 
         const STROKE = .6;  // master line thickness
-        const DRAWING_SCALE = .9; // 1 = current size, <1 smaller, >1 bigger
+        const DRAWING_SCALE = 1.1; // 1 = current size, <1 smaller, >1 bigger
         const STRUCTURE_COLOR = "#000";     // Cabinet frame, legs, rails, etc.
         const DIM_COLOR = "#777";           // VB1-style gray for dim lines + ticks
         const DIM_STROKE = 0.6;         // thinner lines for dims / floor
@@ -2293,7 +2709,7 @@
 
 
         function getDrawingScalePxPerInch() {
-            const BASE_PX_PER_INCH = 10.0;   // ← your current visual size
+            const BASE_PX_PER_INCH = 2.0;   // ← your current visual size
             return BASE_PX_PER_INCH * DRAWING_ZOOM;
         }
 
@@ -5617,7 +6033,7 @@
             const MARGIN_SIDE_IN = 6;
 
             // Base px per inch (visual preference)
-            const BASE_PX_PER_INCH = 6.0;
+            const BASE_PX_PER_INCH = 7.0;
 
             // Cabinet bounds (in inches)
             const contentWIn = widthIn + MARGIN_SIDE_IN * 2;
@@ -5684,8 +6100,10 @@
                 // ✅ Let SVG grow wider than the panel when needed (enables horizontal scroll)
                 activeSvg.style.height = "100%";
                 activeSvg.style.width = "auto";
-                activeSvg.removeAttribute("width");
-                activeSvg.removeAttribute("height");
+
+                // 🔒 DO NOT remove width / height attributes.
+                // doActualRunDrawing() sets real pixel dimensions for scrolling.
+
 
 
                 // If layout isn't settled yet (or svg width doesn't match parent),
@@ -5853,11 +6271,11 @@
             // -------------------------------
             const SINK_DIM_OFFSET_IN = 7;
 
-            const LEFT_GUTTER_PX = 10 * effectivePx;
-            const RIGHT_GUTTER_PX = 14 * effectivePx;
+            const LEFT_GUTTER_PX = 22 * effectivePx;
+            const RIGHT_GUTTER_PX = 22 * effectivePx;
 
             const TOP_GUTTER_PX =
-                (SINK_DIM_OFFSET_IN + 7) * effectivePx;  // ⬅ extra safety space above first dim chain
+                (SINK_DIM_OFFSET_IN + 7) * effectivePx; // ⬅ extra safety space above first dim chain
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
@@ -5881,23 +6299,27 @@
             });
 
             // -------------------------------
-            // 6) FINAL VIEWPORT SIZE
+            // 6) FINAL VIEWPORT SIZE (BBOX-BASED → NO MORE "INVISIBLE WALL")
             // -------------------------------
-            const totalWidth =
-                cursorX +
-                LEFT_GUTTER_PX +
-                RIGHT_GUTTER_PX;
+            // Use what was ACTUALLY drawn to size the viewBox so nothing clips.
+            let bbox;
+            try {
+                bbox = viewportG.getBBox();
+            } catch (e) {
+                // If bbox fails for any reason, bail safely.
+                return;
+            }
 
-            const totalHeight =
-                tallestHeightIn * effectivePx +
-                TOP_GUTTER_PX +
-                BOTTOM_GUTTER_PX;
+            // Ensure the viewBox starts at 0,0 (your drawing expects that),
+            // but expand width/height to fully contain the drawn content + gutters.
+            const totalWidth = Math.ceil(Math.max(bbox.x + bbox.width + RIGHT_GUTTER_PX, 1));
+            const totalHeight = Math.ceil(Math.max(bbox.y + bbox.height + BOTTOM_GUTTER_PX, 1));
 
             // Keep viewBox for consistency, but ALSO set explicit pixel size so
             // 1 viewBox unit == 1 CSS px, enabling scroll + stable scale.
             svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
-            svg.setAttribute("width", `${Math.ceil(totalWidth)}`);
-            svg.setAttribute("height", `${Math.ceil(totalHeight)}`);
+            svg.setAttribute("width", `${totalWidth}`);
+            svg.setAttribute("height", `${totalHeight}`);
 
             // -------------------------------
             // 7) CENTER THE SCROLLER (DESKTOP + MOBILE)
@@ -8152,12 +8574,91 @@
         window.addEventListener("load", () => {
             setupDrawingEngine();
             setupMobileDrawingGestures();
-            setupQuarterInchSteppers(); // ← ADD THIS LINE
+            setupQuarterInchSteppers();
+            initFieldHelp();
         });
 
 
 
 
+        function initFieldHelp() {
+            const modal = document.getElementById("helpModal");
+            const titleEl = document.getElementById("helpModalTitle");
+            const bodyEl = document.getElementById("helpModalBody");
+            const imgEl = document.getElementById("helpModalImg");
+
+            if (!modal || !titleEl || !bodyEl || !imgEl) return;
+
+            function openHelpFrom(btn) {
+                const title = btn.getAttribute("data-help-title") || "info";
+                const html = btn.getAttribute("data-help-html") || "";
+                const body = btn.getAttribute("data-help-body") || "";
+                const img = btn.getAttribute("data-help-img") || "";
+
+                titleEl.textContent = title;
+                if (html) {
+                    bodyEl.innerHTML = html;
+                } else {
+                    bodyEl.innerHTML = body.replace(/\n/g, "<br>");
+                }
+
+
+
+                if (html) {
+                    imgEl.removeAttribute("src");
+                    imgEl.style.display = "none";
+                } else if (img) {
+                    imgEl.src = img;
+                    imgEl.style.display = "block";
+                } else {
+                    imgEl.removeAttribute("src");
+                    imgEl.style.display = "none";
+                }
+
+
+                modal.classList.remove("hidden");
+            }
+
+            function closeHelp() {
+                modal.classList.add("hidden");
+                imgEl.removeAttribute("src");
+                imgEl.style.display = "none";
+            }
+            document.addEventListener("click", (e) => {
+                // 1) Click on the ? icon
+                const helpBtn = e.target.closest(".help-icon");
+                if (helpBtn) {
+                    e.preventDefault();
+                    openHelpFrom(helpBtn);
+                    return;
+                }
+
+                // 2) Click on the label text that HAS a help icon
+                const helpLabel = e.target.closest(".label-with-help");
+                if (helpLabel && !e.target.closest("select") && !e.target.closest("input")) {
+                    const btn = helpLabel.querySelector(".help-icon");
+                    if (btn) {
+                        e.preventDefault();
+                        openHelpFrom(btn);
+                        return;
+                    }
+                }
+
+                // 3) Close modal
+                const closeTarget = e.target.closest("[data-help-close='1']");
+                if (closeTarget) {
+                    e.preventDefault();
+                    closeHelp();
+                }
+            });
+
+
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+                    closeHelp();
+                }
+            });
+        }
 
 
     </script>
@@ -8172,6 +8673,20 @@
             <div id="price-breakdown-content"></div>
 
             <button class="price-modal-close">close</button>
+        </div>
+    </div>
+
+    <div id="helpModal" class="help-modal hidden">
+        <div class="help-modal-backdrop" data-help-close="1"></div>
+
+        <div class="help-modal-card" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+            <h3 id="helpModalTitle" class="help-modal-title"></h3>
+
+            <img id="helpModalImg" class="help-modal-img" alt="example image" />
+
+            <p id="helpModalBody" class="help-modal-body"></p>
+
+            <button type="button" class="help-modal-close" data-help-close="1">close</button>
         </div>
     </div>
 
