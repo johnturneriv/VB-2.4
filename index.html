@@ -742,7 +742,7 @@
                 margin-left: auto;
                 margin-right: auto;
 
-                touch-action: auto !important;
+                touch-action: none !important;
                 pointer-events: auto;
             }
 
@@ -1365,7 +1365,7 @@
                             <label for="shelfThickness">shelf thickness (in)</label>
                             <select id="shelfThickness">
                                 <option value="1.5">1.5"</option>
-                                <option value="2" selected>2"</option>
+                                <option value="2" selected>2" (standard)</option>
                                 <option value="2.5">2.5"</option>
                                 <option value="3">3"</option>
                             </select>
@@ -1383,7 +1383,7 @@
                                 <option value="remove">remove</option>
                                 <option value="0.75">3/4"</option>
                                 <option value="1">1"</option>
-                                <option value="1.5" selected>1 1/2"</option>
+                                <option value="1.5" selected>1 1/2" (standard)</option>
                                 <option value="2">2"</option>
                             </select>
 
@@ -1400,7 +1400,7 @@
                                 <option value="remove">remove</option>
                                 <option value="0.75">3/4"</option>
                                 <option value="1">1"</option>
-                                <option value="1.5" selected>1 1/2"</option>
+                                <option value="1.5" selected>1 1/2" (standard)</option>
                                 <option value="2">2"</option>
                             </select>
                         </div>
@@ -1412,7 +1412,7 @@
                                 <option value="remove">remove</option>
                                 <option value="0.75">3/4"</option>
                                 <option value="1.5">1 1/2"</option>
-                                <option value="2" selected>2"</option>
+                                <option value="2" selected>2" (standard)</option>
                                 <option value="2.5">2 1/2"</option>
                                 <option value="3">3"</option>
                             </select>
@@ -1424,7 +1424,7 @@
                             <label for="drawerRailHeightIn">dividing rail height</label>
                             <select id="drawerRailHeightIn">
                                 <option value="0.75">3/4"</option>
-                                <option value="1" selected>1"</option>
+                                <option value="1" selected>1" (standard)</option>
                                 <option value="1.5">1 1/2"</option>
                                 <option value="2">2"</option>
                             </select>
@@ -1437,7 +1437,7 @@
                                 <option value="0.75">3/4"</option>
                                 <option value="1">1"</option>
                                 <option value="1.5">1 1/2"</option>
-                                <option value="2" selected>2"</option>
+                                <option value="2" selected>2" (standard)</option>
                                 <option value="2.5">2 1/2"</option>
                                 <option value="3">3"</option>
                             </select>
@@ -7791,15 +7791,12 @@
         let lastTouchDist = null;
         let lastTouchMid = null;
 
-
         function applyMobileTransform() {
             const svg = document.getElementById("vanityDrawing");
             if (!svg) return;
 
-            const isExpanded = document.body.classList.contains("drawing-expanded");
-
-            // Non-expanded: no JS transforms (drawing/viewBox handles layout)
-            if (!isExpanded) {
+            const isMobile = window.matchMedia("(max-width: 768px)").matches;
+            if (!isMobile) {
                 svg.style.transform = "";
                 svg.style.transformOrigin = "";
                 return;
@@ -7828,7 +7825,6 @@
                 const contentWpx = bb.width * uxToPx * mobileScale;
                 const contentHpx = bb.height * uyToPx * mobileScale;
 
-                // Also offset by content origin so (bb.x, bb.y) ends up centered
                 const contentLeftPx = bb.x * uxToPx * mobileScale;
                 const contentTopPx = bb.y * uyToPx * mobileScale;
 
@@ -7836,10 +7832,12 @@
                 mobileTranslateY = (rect.height - contentHpx) / 2 - contentTopPx;
             }
 
+            // IMPORTANT: origin 0,0 so our midpoint anchoring math is stable
             svg.style.transformOrigin = "0 0";
             svg.style.transform =
                 `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
         }
+
 
         // Recenter expanded drawing when the *visible* viewport changes (rotation / URL bar)
         if (window.visualViewport) {
@@ -7876,8 +7874,6 @@
             let lastOneFinger = null;
 
             svg.addEventListener("touchstart", (e) => {
-                if (!document.body.classList.contains("drawing-expanded")) return;
-
                 if (e.touches.length === 1) {
                     lastOneFinger = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 }
@@ -7889,8 +7885,6 @@
             }, { passive: false });
 
             svg.addEventListener("touchmove", (e) => {
-                if (!document.body.classList.contains("drawing-expanded")) return;
-
                 // 1-finger pan
                 if (e.touches.length === 1 && lastOneFinger) {
                     e.preventDefault();
@@ -7906,7 +7900,7 @@
                     return;
                 }
 
-                // 2-finger pinch + pan (ZOOM AROUND MIDPOINT like Photos)
+                // 2-finger pinch zoom anchored to the midpoint (Photos-style)
                 if (e.touches.length === 2) {
                     e.preventDefault();
 
@@ -7932,7 +7926,7 @@
                         y: newMid.y - rect.top
                     };
 
-                    // What content point (untransformed) was under the last midpoint?
+                    // Content point under the *last* midpoint (in transformed space)
                     const uX = (lastMidLocal.x - mobileTranslateX) / mobileScale;
                     const uY = (lastMidLocal.y - mobileTranslateY) / mobileScale;
 
@@ -7940,7 +7934,7 @@
                     const scaleDelta = newDist / lastTouchDist;
                     const nextScale = Math.max(0.5, Math.min(3, mobileScale * scaleDelta));
 
-                    // Set translate so that SAME content point stays under the NEW midpoint
+                    // Keep same content point under the *new* midpoint
                     mobileTranslateX = newMidLocal.x - (uX * nextScale);
                     mobileTranslateY = newMidLocal.y - (uY * nextScale);
                     mobileScale = nextScale;
