@@ -3526,17 +3526,30 @@
 
             if (!sectionCount) return;
 
-            // Sink bays are protected; everything else is adjustable
+            // ------------------------------------------------------------
+            // 1) If we have sinks: protect sink bays; adjust everything else
+            // 2) If we have NO sinks: adjust ONLY bays that are drawers
+            // ------------------------------------------------------------
             const sinkIdx = computeSinkSectionIndices(model, sections) || [];
-            if (!sinkIdx.length) return; // no sinks → this visibility system does nothing
+            let adjustableIdx = [];
 
-            const protectedSet = new Set(sinkIdx);
-            const adjustableIdx = sections
-                .map((_, i) => i)
-                .filter(i => !protectedSet.has(i));
+            if (sinkIdx.length) {
+                const protectedSet = new Set(sinkIdx);
+                adjustableIdx = sections
+                    .map((_, i) => i)
+                    .filter(i => !protectedSet.has(i));
+            } else {
+                // NO SINK fallback: adjustable bays are wherever drawer faces are drawn
+                adjustableIdx = sections
+                    .map((sec, i) => (sec?.role === "drawer" ? i : null))
+                    .filter(i => i !== null);
+            }
 
-            // no adjustable bays → nothing to adjust
-            if (!adjustableIdx.length) return;
+            // If nothing is adjustable, still allow the simple control as a fallback
+            if (!adjustableIdx.length) {
+                singleWrap.style.display = "";
+                return;
+            }
 
             if (sectionCount === 2) {
                 twoSectionWrap.style.display = "";
@@ -3567,7 +3580,6 @@
 
             singleWrap.style.display = "";
         }
-
 
 
 
