@@ -1537,7 +1537,7 @@ recommended height is 30&quot; off the floor.">?</button>
                     <!-- row 1: layout + styles + drawer widths -->
                     <div class="field-row">
                         <div class="field md">
-                            <label>configuration</label>
+                            <label>layout options</label>
                             <select id="layoutPreset">
                                 <option value="default">default layout</option>
                             </select>
@@ -6220,14 +6220,6 @@ recommended height is 30&quot; off the floor.">?</button>
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
-            // ✅ NEW: capture current pan/zoom transform BEFORE clearing
-            // This prevents snap-back when a redraw happens (e.g., section select).
-            let prevViewportTransform = "";
-            try {
-                const prev = svg.querySelector("#mobileViewport");
-                if (prev) prevViewportTransform = prev.getAttribute("transform") || "";
-            } catch (e) { }
-
             clearSvg(svg);
 
             // =========================================================
@@ -6236,13 +6228,6 @@ recommended height is 30&quot; off the floor.">?</button>
             const ns = "http://www.w3.org/2000/svg";
             const viewportG = document.createElementNS(ns, "g");
             viewportG.setAttribute("id", "mobileViewport");
-
-            // ✅ NEW: re-apply the previous transform to the new wrapper
-            // so redraws never reset the user’s current view.
-            if (prevViewportTransform) {
-                viewportG.setAttribute("transform", prevViewportTransform);
-            }
-
             svg.appendChild(viewportG);
 
             // 🔒 APPLY VIEWPORT SCALE (ONCE)
@@ -6286,21 +6271,15 @@ recommended height is 30&quot; off the floor.">?</button>
                 effectivePx = basePx * (MAX_DRAWING_HEIGHT_PX / rawHeightPx);
             }
 
-            // ✅ NEW: prevent “thin lines / zoomed out” after clicking a section in expanded mode
-            // by locking the effectivePx for the duration of expanded viewing.
+            // ✅ KEY: if expanded mode has a locked px, always use it
             const isExpanded = document.body.classList.contains("drawing-expanded");
             const lockedPx = Number(svg.dataset.lockedEffectivePx);
-
-            if (isExpanded) {
-                if (isFinite(lockedPx) && lockedPx > 0) {
-                    effectivePx = lockedPx;
-                } else {
-                    svg.dataset.lockedEffectivePx = String(effectivePx);
-                }
-            } else {
-                // leaving expanded mode → clear the lock
-                if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+            if (isExpanded && isFinite(lockedPx) && lockedPx > 0) {
+                effectivePx = lockedPx;
             }
+
+            // ✅ KEY: remember what we actually drew at (used to lock expanded later)
+            svg.dataset.lastEffectivePx = String(effectivePx);
 
             // -------------------------------
             // 4) GUTTERS (NOW USING effectivePx)
@@ -6357,11 +6336,23 @@ recommended height is 30&quot; off the floor.">?</button>
             svg.setAttribute("width", `${totalWidth}`);
             svg.setAttribute("height", `${totalHeight}`);
 
+            // ✅ KEY: re-apply the current mobile pan/zoom AFTER redraw
+            requestAnimationFrame(() => {
+                if (typeof applyMobileTransform === "function") applyMobileTransform();
+            });
+
             // -------------------------------
             // 7) CENTER THE SCROLLER (DESKTOP + MOBILE)
             // -------------------------------
             const panel = document.getElementById("drawing-panel");
-            if (panel && !document.body.classList.contains("drawing-expanded")) {
+
+            // ✅ KEY: do NOT re-center if user has panned/zoomed (prevents snap-to-center)
+            const userHasMovedView =
+                (typeof mobileScale === "number" && mobileScale !== 1) ||
+                (typeof mobileTranslateX === "number" && mobileTranslateX !== 0) ||
+                (typeof mobileTranslateY === "number" && mobileTranslateY !== 0);
+
+            if (panel && !document.body.classList.contains("drawing-expanded") && !userHasMovedView) {
                 requestAnimationFrame(() => {
                     const maxX = Math.max(0, svg.getBoundingClientRect().width - panel.clientWidth);
                     const maxY = Math.max(0, svg.getBoundingClientRect().height - panel.clientHeight);
@@ -8541,42 +8532,51 @@ recommended height is 30&quot; off the floor.">?</button>
             });
         }
 
-
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
-            const toggleBtn = document.getElementById("mobile-minimize-button");   // ✅ matches your HTML
+            const toggleBtn = document.getElementById("mobile-minimize-button");   // minimize/expand toggle
             const priceBtn = document.getElementById("mobile-price-button");
             const closeBtn = document.getElementById("mobile-expand-close");
 
-            // Only require the buttons that must exist to work normally
             if (!expandBtn || !toggleBtn || !priceBtn) return;
 
             function setExpanded(on) {
+                const svg = (typeof getActiveDrawingSvg === "function")
+                    ? getActiveDrawingSvg()
+                    : document.getElementById("vanityDrawing");
+
+                if (svg) {
+                    if (on) {
+                        // ✅ keep: lock expanded redraw to the last non-expanded effective px
+                        const lastPx = Number(svg.dataset.lastEffectivePx);
+                        if (isFinite(lastPx) && lastPx > 0) {
+                            svg.dataset.lockedEffectivePx = String(lastPx);
+                        }
+                    } else {
+                        // leaving expanded → clear lock
+                        if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+                    }
+                }
+
                 document.body.classList.toggle("drawing-expanded", !!on);
 
-                // Reset pan/zoom every time you enter/exit expanded
-                mobileScale = 1;
-                mobileTranslateX = 0;
-                mobileTranslateY = 0;
-
+                // do NOT reset mobileScale/mobileTranslate
                 requestAnimationFrame(() => {
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
                 });
-
-                if (typeof applyMobileTransform === "function") {
-                    applyMobileTransform();
-                }
             }
 
             function setMinimized(on) {
                 document.body.classList.toggle("drawing-minimized", !!on);
+
+                // ✅ keep ALL THREE buttons visible (no hiding full screen / price)
+                // ✅ toggle button text switches between minimize/expand
                 toggleBtn.textContent = on ? "expand" : "minimize";
             }
 
             // default state: NOT minimized
             setMinimized(false);
 
-            // Middle button toggles hide/show
             toggleBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -8585,16 +8585,12 @@ recommended height is 30&quot; off the floor.">?</button>
                 setMinimized(!isMin);
             });
 
-            // Full screen button: ensure not minimized, then expand
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-
-                setMinimized(false);
                 setExpanded(true);
             });
 
-            // Close (only works if button exists in DOM)
             if (closeBtn) {
                 closeBtn.addEventListener("click", (e) => {
                     e.preventDefault();
