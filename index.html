@@ -1537,7 +1537,7 @@ recommended height is 30&quot; off the floor.">?</button>
                     <!-- row 1: layout + styles + drawer widths -->
                     <div class="field-row">
                         <div class="field md">
-                            <label>layout options</label>
+                            <label>configuration</label>
                             <select id="layoutPreset">
                                 <option value="default">default layout</option>
                             </select>
@@ -4609,7 +4609,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 l.setAttribute("x2", x2);
                 l.setAttribute("y2", y2);
                 l.setAttribute("stroke", "#000");
-                l.setAttribute("stroke-width", "0.3");
+                l.setAttribute("stroke-width", "0.5");
                 svg.appendChild(l);
             }
 
@@ -5722,10 +5722,8 @@ recommended height is 30&quot; off the floor.">?</button>
             const ox = scale.originX;
 
             const { openTopY, openBottomY } = computeCaseOpeningVertical(model);
-
             const openingHeight = openBottomY - openTopY;
             if (openingHeight <= 0) return;
-
 
             const sec = sections[selectedSectionIndex];
 
@@ -5734,23 +5732,6 @@ recommended height is 30&quot; off the floor.">?</button>
             const faceTop = openTopY;
 
             const ns = "http://www.w3.org/2000/svg";
-
-            // remove any prior overlay group so we don't stack duplicates
-            const oldOverlay = svg.querySelector("#sectionControlsOverlay");
-            if (oldOverlay) oldOverlay.remove();
-
-            // draw everything into an overlay group we can force on top
-            const overlayG = document.createElementNS(ns, "g");
-            overlayG.setAttribute("id", "sectionControlsOverlay");
-            svg.appendChild(overlayG);
-
-            // after the full draw finishes (including sinks/dims), force overlay to the top
-            requestAnimationFrame(() => {
-                try {
-                    const g = svg.querySelector("#sectionControlsOverlay");
-                    if (g && g.parentNode) g.parentNode.appendChild(g);
-                } catch (e) { }
-            });
 
             // --------------------------------------------------
             // SECTION CONTROL BUTTONS (no side effects yet)
@@ -5767,32 +5748,29 @@ recommended height is 30&quot; off the floor.">?</button>
                     buttons.push({ id: "remove-drawer", label: "remove drawer" });
                 }
 
-                // show "hide dims" ONLY when drawer count has been overridden
-                const hasDrawerCountOverride =
-                    sectionOverrides[selectedSectionIndex] &&
-                    typeof sectionOverrides[selectedSectionIndex].drawerCount === "number";
+                const dimsHidden = sectionOverrides[selectedSectionIndex]?.drawerDimsHidden;
+                buttons.push({
+                    id: "toggle-drawer-dims",
+                    label: dimsHidden ? "show dims" : "hide dims"
+                });
 
-                if (hasDrawerCountOverride) {
-                    const dimsHidden = sectionOverrides[selectedSectionIndex]?.drawerDimsHidden;
-                    buttons.push({
-                        id: "toggle-drawer-dims",
-                        label: dimsHidden ? "show dims" : "hide dims"
-                    });
-                }
             }
+
 
             if (sec.role === "door") {
                 const { minLeaves, maxLeaves } = getDoorLeafRulesForSection(sec);
 
+                // determine current leaf count from drawing state
                 // default = geometry-based
                 let currentLeaves = (sec.widthIn >= 20 ? 2 : 1);
 
-                // override if exists
+                // if an override exists, trust it
                 const o = sectionOverrides[selectedSectionIndex];
                 if (o && typeof o.doorLeaves === "number") {
                     currentLeaves = o.doorLeaves;
                 }
 
+                // show ONLY valid transitions
                 if (currentLeaves === 1 && maxLeaves === 2) {
                     buttons.push({ id: "make-two-doors", label: "make two doors" });
                 }
@@ -5800,8 +5778,10 @@ recommended height is 30&quot; off the floor.">?</button>
                 if (currentLeaves === 2 && minLeaves === 1) {
                     buttons.push({ id: "make-one-door", label: "make one door" });
                 }
-
-                // hide interior shelf option when global shelfBelow is enabled
+                // -----------------------------
+                // INTERIOR SHELF TOGGLE
+                // -----------------------------
+                // ❌ hide interior shelf option when global shelfBelow is enabled
                 if (!model.shelfBelow) {
                     const hasShelf =
                         sectionOverrides[selectedSectionIndex]?.interiorShelf === true;
@@ -5811,9 +5791,12 @@ recommended height is 30&quot; off the floor.">?</button>
                         label: hasShelf ? "remove interior shelf" : "add interior shelf"
                     });
                 }
+
+
             }
 
-            if (!buttons.length) return;
+
+
 
             // --------------------------------------------------
             // CREATE TEXT FIRST (to measure size)
@@ -5829,8 +5812,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 t.setAttribute("font-family", "Raleway, sans-serif");
                 t.setAttribute("fill", "#111");
                 t.setAttribute("visibility", "hidden");
-
-                overlayG.appendChild(t);
+                svg.appendChild(t);
 
                 const bb = t.getBBox();
                 maxTextW = Math.max(maxTextW, bb.width);
@@ -5838,6 +5820,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 textNodes.push({ btn, text: t, bb });
             });
+
 
             const PADDING_X = 12;
             const PADDING_Y = 10;
@@ -5849,56 +5832,30 @@ recommended height is 30&quot; off the floor.">?</button>
                 (buttons.length - 1) * GAP_Y +
                 PADDING_Y * 2;
 
+
             // --------------------------------------------------
-            // HORIZONTAL PLACEMENT (NEVER COVER SELECTED SECTION)
+            // HORIZONTAL PLACEMENT
             // --------------------------------------------------
+            const isLast = selectedSectionIndex === sections.length - 1;
+            const placeRight = !isLast;
+
+            let menuX = placeRight
+                ? faceX + faceW + 8
+                : faceX - menuW - 8;
+
+            // Clamp inside cabinet bounds
             const cabLeft = ox;
             const cabRight = ox + model.widthIn * px;
 
-            const GAP_X = 8;
-
-            // Candidates:
-            const insideRightX = faceX + faceW + GAP_X;
-            const insideLeftX = faceX - menuW - GAP_X;
-
-            // If we must go outside, keep it immediately adjacent to the selected section (consistent gap)
-            const outsideRightX = faceX + faceW + GAP_X;
-
-            // NOTE: we intentionally avoid negative-x outside-left because your viewBox starts at 0.
-
-            // Helper: does X overlap the selected section span?
-            function overlapsSelected(x) {
-                const a0 = x;
-                const a1 = x + menuW;
-                const b0 = faceX;
-                const b1 = faceX + faceW;
-                return (a0 < b1) && (a1 > b0);
+            if (menuX + menuW > cabRight) {
+                menuX = cabRight - menuW;
             }
-
-            // Helper: fits inside cabinet bounds?
-            function fitsInsideCab(x) {
-                return (x >= cabLeft) && (x + menuW <= cabRight);
-            }
-
-            let menuX;
-
-            if (sections.length > 1) {
-                // Prefer inside (to keep it within vanity outline) as long as it doesn't overlap selected.
-                if (fitsInsideCab(insideRightX) && !overlapsSelected(insideRightX)) {
-                    menuX = insideRightX;
-                } else if (fitsInsideCab(insideLeftX) && !overlapsSelected(insideLeftX)) {
-                    menuX = insideLeftX;
-                } else {
-                    // If inside would be forced to overlap, allow outside.
-                    menuX = outsideRightX;
-                }
-            } else {
-                // Single section: inside placement would always overlap → go outside.
-                menuX = outsideRightX;
+            if (menuX < cabLeft) {
+                menuX = cabLeft;
             }
 
             // --------------------------------------------------
-            // VERTICAL PLACEMENT (same look as before)
+            // VERTICAL PLACEMENT
             // --------------------------------------------------
             let menuY = faceTop + 6;
 
@@ -5906,35 +5863,40 @@ recommended height is 30&quot; off the floor.">?</button>
             if (menuY > maxY) {
                 menuY = maxY;
             }
-            if (menuY < 0) menuY = 0;
+
 
 
             // --------------------------------------------------
-            // POSITION TEXT + BUTTONS (same styling/behavior)
+            // POSITION TEXT
             // --------------------------------------------------
             let curY = menuY + PADDING_Y;
 
             textNodes.forEach(({ btn, text, bb }) => {
-                const btnH = lineH + 8;
+                const btnH = lineH + 6;
 
+                // button background
                 const r = document.createElementNS(ns, "rect");
                 r.setAttribute("x", menuX);
                 r.setAttribute("y", curY);
                 r.setAttribute("width", menuW);
                 r.setAttribute("height", btnH);
                 r.setAttribute("rx", 3);
-                r.setAttribute("fill", "#e6f0ff");
-                r.setAttribute("stroke", "#3b82f6");
+                r.setAttribute("fill", "#e6f0ff");      // 🔹 light blue default
+                r.setAttribute("stroke", "#3b82f6");    // 🔹 section outline blue
                 r.setAttribute("stroke-width", "1");
                 r.style.cursor = "pointer";
 
+                // hover
                 r.addEventListener("mouseenter", () => {
-                    r.setAttribute("fill", "#d6e6ff");
+                    r.setAttribute("fill", "#d6e6ff");  // slightly stronger blue
                 });
                 r.addEventListener("mouseleave", () => {
-                    r.setAttribute("fill", "#e6f0ff");
+                    r.setAttribute("fill", "#e6f0ff");  // back to default blue
                 });
 
+
+
+                // click
                 r.addEventListener("click", (e) => {
                     e.stopPropagation();
 
@@ -5944,6 +5906,9 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     const o = sectionOverrides[selectedSectionIndex];
 
+                    // -----------------------------
+                    // ADD DRAWER
+                    // -----------------------------
                     if (btn.id === "add-drawer") {
                         const current = getDrawerCountForSection(
                             model,
@@ -5955,6 +5920,9 @@ recommended height is 30&quot; off the floor.">?</button>
                         return;
                     }
 
+                    // -----------------------------
+                    // REMOVE DRAWER
+                    // -----------------------------
                     if (btn.id === "remove-drawer") {
                         const current = getDrawerCountForSection(
                             model,
@@ -5975,8 +5943,12 @@ recommended height is 30&quot; off the floor.">?</button>
 
                         updateDrawing();
                         return;
+
                     }
 
+                    // -----------------------------
+                    // DOOR LEAF CONTROLS
+                    // -----------------------------
                     if (btn.id === "make-one-door") {
                         o.doorLeaves = 1;
                         updateDrawing();
@@ -5994,22 +5966,27 @@ recommended height is 30&quot; off the floor.">?</button>
                         updateDrawing();
                         return;
                     }
-
                     if (btn.id === "toggle-interior-shelf") {
                         o.interiorShelf = !o.interiorShelf;
                         updateDrawing();
                         return;
                     }
+
+
                 });
 
-                overlayG.appendChild(r);
+                svg.appendChild(r);
 
+
+
+                // text
                 text.setAttribute("x", menuX + 10);
                 text.setAttribute("y", curY + btnH / 2 + bb.height / 2 - 1);
                 text.setAttribute("visibility", "visible");
                 text.setAttribute("pointer-events", "none");
 
-                overlayG.appendChild(text);
+                svg.appendChild(text); // ✅ MOVE TEXT ABOVE BUTTON RECT
+
 
                 curY += btnH + GAP_Y;
             });
@@ -6125,21 +6102,14 @@ recommended height is 30&quot; off the floor.">?</button>
                 const activeSvg = getActiveDrawingSvg();
                 if (!activeSvg) return;
 
-                // ✅ If the drawing is minimized, DO NOT clear/redraw now.
-                // Navigating pages while minimized can make SVG size 0,
-                // which causes doActualRunDrawing() to clear and then bail.
-                // Instead: mark "needs redraw" and wait until user expands.
-                if (document.body.classList.contains("drawing-minimized")) {
-                    activeSvg.dataset.needsRedrawOnExpand = "1";
-                    return;
-                }
-
                 // ✅ Let SVG grow wider than the panel when needed (enables horizontal scroll)
                 activeSvg.style.height = "100%";
                 activeSvg.style.width = "auto";
 
                 // 🔒 DO NOT remove width / height attributes.
                 // doActualRunDrawing() sets real pixel dimensions for scrolling.
+
+
 
                 // If layout isn't settled yet (or svg width doesn't match parent),
                 // skip this draw and retry once on the next frame.
@@ -6153,6 +6123,8 @@ recommended height is 30&quot; off the floor.">?</button>
                 const looksUnstable =
                     !isFinite(svgW) || svgW <= 0 ||
                     !isFinite(parentW) || parentW <= 0;
+
+
 
                 if (looksUnstable && window.__vbLayoutRetry < 1) {
                     window.__vbLayoutRetry += 1;
@@ -6248,22 +6220,13 @@ recommended height is 30&quot; off the floor.">?</button>
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
-            const panel = document.getElementById("drawing-panel");
-
-            // ✅ Preserve scroll position so the vanity doesn't "shift" when viewBox grows
-            const prevScrollLeft = panel ? panel.scrollLeft : 0;
-            const prevScrollTop = panel ? panel.scrollTop : 0;
-
-            // ✅ Preserve prior viewport transform to avoid flicker after pinch-zoom
+            // ✅ NEW: capture current pan/zoom transform BEFORE clearing
+            // This prevents snap-back when a redraw happens (e.g., section select).
             let prevViewportTransform = "";
             try {
-                const prevG = svg.querySelector("#mobileViewport");
-                if (prevG) prevViewportTransform = prevG.getAttribute("transform") || "";
+                const prev = svg.querySelector("#mobileViewport");
+                if (prev) prevViewportTransform = prev.getAttribute("transform") || "";
             } catch (e) { }
-
-            // ✅ Track prior SVG size so we can detect "growth" (buttons/labels)
-            const prevW = Number(svg.getAttribute("width")) || 0;
-            const prevH = Number(svg.getAttribute("height")) || 0;
 
             clearSvg(svg);
 
@@ -6274,7 +6237,8 @@ recommended height is 30&quot; off the floor.">?</button>
             const viewportG = document.createElementNS(ns, "g");
             viewportG.setAttribute("id", "mobileViewport");
 
-            // ✅ Apply transform BEFORE drawing to eliminate the "tweak out" flash
+            // ✅ NEW: re-apply the previous transform to the new wrapper
+            // so redraws never reset the user’s current view.
             if (prevViewportTransform) {
                 viewportG.setAttribute("transform", prevViewportTransform);
             }
@@ -6322,28 +6286,32 @@ recommended height is 30&quot; off the floor.">?</button>
                 effectivePx = basePx * (MAX_DRAWING_HEIGHT_PX / rawHeightPx);
             }
 
-            // ✅ keep: expanded mode scale lock
+            // ✅ NEW: prevent “thin lines / zoomed out” after clicking a section in expanded mode
+            // by locking the effectivePx for the duration of expanded viewing.
             const isExpanded = document.body.classList.contains("drawing-expanded");
             const lockedPx = Number(svg.dataset.lockedEffectivePx);
-            if (isExpanded && isFinite(lockedPx) && lockedPx > 0) {
-                effectivePx = lockedPx;
-            }
 
-            // remember what we actually drew at
-            svg.dataset.lastEffectivePx = String(effectivePx);
+            if (isExpanded) {
+                if (isFinite(lockedPx) && lockedPx > 0) {
+                    effectivePx = lockedPx;
+                } else {
+                    svg.dataset.lockedEffectivePx = String(effectivePx);
+                }
+            } else {
+                // leaving expanded mode → clear the lock
+                if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+            }
 
             // -------------------------------
             // 4) GUTTERS (NOW USING effectivePx)
             // -------------------------------
             const SINK_DIM_OFFSET_IN = 7;
 
-            // ✅ symmetric fixed gutters so the vanity stays centered by default
-            const LEFT_GUTTER_PX = Math.max(22 * effectivePx, 320);
-            const RIGHT_GUTTER_PX = Math.max(22 * effectivePx, 320);
-
+            const LEFT_GUTTER_PX = 22 * effectivePx;
+            const RIGHT_GUTTER_PX = 22 * effectivePx;
 
             const TOP_GUTTER_PX =
-                (SINK_DIM_OFFSET_IN + 7) * effectivePx;
+                (SINK_DIM_OFFSET_IN + 7) * effectivePx; // ⬅ extra safety space above first dim chain
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
@@ -6360,61 +6328,40 @@ recommended height is 30&quot; off the floor.">?</button>
                 obj.model.scale.originX = LEFT_GUTTER_PX;
                 obj.model.scale.originY = TOP_GUTTER_PX;
 
+                // ✅ draw INTO the wrapper group (not the svg)
                 drawVanityAtX(viewportG, obj.model, cursorX);
 
                 cursorX += obj.model.widthIn * effectivePx + GAP_PX;
             });
 
             // -------------------------------
-            // 6) FINAL VIEWPORT SIZE (BBOX-BASED)
+            // 6) FINAL VIEWPORT SIZE (BBOX-BASED → NO MORE "INVISIBLE WALL")
             // -------------------------------
+            // Use what was ACTUALLY drawn to size the viewBox so nothing clips.
             let bbox;
             try {
                 bbox = viewportG.getBBox();
             } catch (e) {
+                // If bbox fails for any reason, bail safely.
                 return;
             }
 
+            // Ensure the viewBox starts at 0,0 (your drawing expects that),
+            // but expand width/height to fully contain the drawn content + gutters.
             const totalWidth = Math.ceil(Math.max(bbox.x + bbox.width + RIGHT_GUTTER_PX, 1));
             const totalHeight = Math.ceil(Math.max(bbox.y + bbox.height + BOTTOM_GUTTER_PX, 1));
 
+            // Keep viewBox for consistency, but ALSO set explicit pixel size so
+            // 1 viewBox unit == 1 CSS px, enabling scroll + stable scale.
             svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
             svg.setAttribute("width", `${totalWidth}`);
             svg.setAttribute("height", `${totalHeight}`);
 
-            // ✅ Re-apply transform once more after sizing (safe; keeps view stable)
-            if (typeof applyMobileTransform === "function") {
-                applyMobileTransform();
-            }
-
-            // ✅ If the SVG grew (buttons/labels), restore scroll so vanity doesn't shift
-            const grew =
-                (totalWidth > prevW && prevW > 0) ||
-                (totalHeight > prevH && prevH > 0);
-
-            if (panel && grew) {
-                requestAnimationFrame(() => {
-                    panel.scrollLeft = prevScrollLeft;
-                    panel.scrollTop = prevScrollTop;
-                });
-            }
-
             // -------------------------------
-            // 7) CENTER THE SCROLLER (ONLY on first stable draw)
+            // 7) CENTER THE SCROLLER (DESKTOP + MOBILE)
             // -------------------------------
-            const userHasMovedView =
-                (typeof mobileScale === "number" && mobileScale !== 1) ||
-                (typeof mobileTranslateX === "number" && mobileTranslateX !== 0) ||
-                (typeof mobileTranslateY === "number" && mobileTranslateY !== 0);
-
-            const hasSelection = (selectedSectionIndex != null);
-
-            if (panel &&
-                !document.body.classList.contains("drawing-expanded") &&
-                !userHasMovedView &&
-                !hasSelection &&
-                !grew
-            ) {
+            const panel = document.getElementById("drawing-panel");
+            if (panel && !document.body.classList.contains("drawing-expanded")) {
                 requestAnimationFrame(() => {
                     const maxX = Math.max(0, svg.getBoundingClientRect().width - panel.clientWidth);
                     const maxY = Math.max(0, svg.getBoundingClientRect().height - panel.clientHeight);
@@ -6424,6 +6371,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 });
             }
         }
+
 
         // DRAW PIPELINE
         // Order matters. Geometry is computed once per frame.
@@ -7747,27 +7695,6 @@ recommended height is 30&quot; off the floor.">?</button>
             if (drawingEngineInitialized) return;
             drawingEngineInitialized = true;
 
-            // ✅ Clear selected section when user focuses any form field (so highlight doesn't stick)
-            if (!window.__vbClearSectionOnFocus) {
-                window.__vbClearSectionOnFocus = true;
-
-                document.addEventListener("focusin", (e) => {
-                    const t = e.target;
-                    if (!t) return;
-
-                    const tag = (t.tagName || "").toUpperCase();
-                    if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA") return;
-
-                    // don't clear when focusing anything inside the drawing area / mobile bar
-                    if (t.closest("#drawing-panel") || t.closest("#mobile-drawing-bar")) return;
-
-                    if (selectedSectionIndex != null) {
-                        selectedSectionIndex = null;
-                        updateDrawing();
-                    }
-                });
-            }
-
 
             // =====================================================
             // 1) APPLY ALL DEFAULT VALUES BEFORE ANYTHING ELSE
@@ -8614,62 +8541,42 @@ recommended height is 30&quot; off the floor.">?</button>
             });
         }
 
+
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
-            const toggleBtn = document.getElementById("mobile-minimize-button");   // minimize/expand toggle
+            const toggleBtn = document.getElementById("mobile-minimize-button");   // ✅ matches your HTML
             const priceBtn = document.getElementById("mobile-price-button");
             const closeBtn = document.getElementById("mobile-expand-close");
 
+            // Only require the buttons that must exist to work normally
             if (!expandBtn || !toggleBtn || !priceBtn) return;
 
             function setExpanded(on) {
-                const svg = (typeof getActiveDrawingSvg === "function")
-                    ? getActiveDrawingSvg()
-                    : document.getElementById("vanityDrawing");
-
-                if (svg) {
-                    if (on) {
-                        // ✅ keep: lock expanded redraw to the last non-expanded effective px
-                        const lastPx = Number(svg.dataset.lastEffectivePx);
-                        if (isFinite(lastPx) && lastPx > 0) {
-                            svg.dataset.lockedEffectivePx = String(lastPx);
-                        }
-                    } else {
-                        // leaving expanded → clear lock
-                        if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
-                    }
-                }
-
                 document.body.classList.toggle("drawing-expanded", !!on);
 
-                // do NOT reset mobileScale/mobileTranslate
+                // Reset pan/zoom every time you enter/exit expanded
+                mobileScale = 1;
+                mobileTranslateX = 0;
+                mobileTranslateY = 0;
+
                 requestAnimationFrame(() => {
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
                 });
+
+                if (typeof applyMobileTransform === "function") {
+                    applyMobileTransform();
+                }
             }
 
             function setMinimized(on) {
                 document.body.classList.toggle("drawing-minimized", !!on);
-
-                // keep ALL THREE buttons visible
                 toggleBtn.textContent = on ? "expand" : "minimize";
-
-                // ✅ when expanding again, force a redraw if we skipped while minimized
-                if (!on) {
-                    requestAnimationFrame(() => {
-                        const svg = getActiveDrawingSvg();
-                        if (svg && svg.dataset.needsRedrawOnExpand === "1") {
-                            delete svg.dataset.needsRedrawOnExpand;
-                            updateDrawing();
-                        }
-                    });
-                }
             }
-
 
             // default state: NOT minimized
             setMinimized(false);
 
+            // Middle button toggles hide/show
             toggleBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -8678,12 +8585,16 @@ recommended height is 30&quot; off the floor.">?</button>
                 setMinimized(!isMin);
             });
 
+            // Full screen button: ensure not minimized, then expand
             expandBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+
+                setMinimized(false);
                 setExpanded(true);
             });
 
+            // Close (only works if button exists in DOM)
             if (closeBtn) {
                 closeBtn.addEventListener("click", (e) => {
                     e.preventDefault();
