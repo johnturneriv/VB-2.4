@@ -6337,8 +6337,8 @@ recommended height is 30&quot; off the floor.">?</button>
             // -------------------------------
             const SINK_DIM_OFFSET_IN = 7;
 
-            const LEFT_GUTTER_PX = 22 * effectivePx;
-            // ✅ keep a stable right-side canvas buffer so buttons + long fraction labels never force a resize
+            // ✅ symmetric fixed gutters so the vanity stays centered by default
+            const LEFT_GUTTER_PX = Math.max(22 * effectivePx, 320);
             const RIGHT_GUTTER_PX = Math.max(22 * effectivePx, 320);
 
 
