@@ -6220,6 +6220,14 @@ recommended height is 30&quot; off the floor.">?</button>
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
+            // ✅ NEW: capture current pan/zoom transform BEFORE clearing
+            // This prevents snap-back when a redraw happens (e.g., section select).
+            let prevViewportTransform = "";
+            try {
+                const prev = svg.querySelector("#mobileViewport");
+                if (prev) prevViewportTransform = prev.getAttribute("transform") || "";
+            } catch (e) { }
+
             clearSvg(svg);
 
             // =========================================================
@@ -6228,6 +6236,13 @@ recommended height is 30&quot; off the floor.">?</button>
             const ns = "http://www.w3.org/2000/svg";
             const viewportG = document.createElementNS(ns, "g");
             viewportG.setAttribute("id", "mobileViewport");
+
+            // ✅ NEW: re-apply the previous transform to the new wrapper
+            // so redraws never reset the user’s current view.
+            if (prevViewportTransform) {
+                viewportG.setAttribute("transform", prevViewportTransform);
+            }
+
             svg.appendChild(viewportG);
 
             // 🔒 APPLY VIEWPORT SCALE (ONCE)
@@ -6269,6 +6284,22 @@ recommended height is 30&quot; off the floor.">?</button>
 
             if (rawHeightPx > MAX_DRAWING_HEIGHT_PX) {
                 effectivePx = basePx * (MAX_DRAWING_HEIGHT_PX / rawHeightPx);
+            }
+
+            // ✅ NEW: prevent “thin lines / zoomed out” after clicking a section in expanded mode
+            // by locking the effectivePx for the duration of expanded viewing.
+            const isExpanded = document.body.classList.contains("drawing-expanded");
+            const lockedPx = Number(svg.dataset.lockedEffectivePx);
+
+            if (isExpanded) {
+                if (isFinite(lockedPx) && lockedPx > 0) {
+                    effectivePx = lockedPx;
+                } else {
+                    svg.dataset.lockedEffectivePx = String(effectivePx);
+                }
+            } else {
+                // leaving expanded mode → clear the lock
+                if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
             }
 
             // -------------------------------
