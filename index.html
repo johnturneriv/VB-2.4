@@ -5912,6 +5912,14 @@ recommended height is 30&quot; off the floor.">?</button>
             // ✅ Ensure the SVG/viewBox is large enough so the menu never clips
             // (This does NOT change scale in your system because you keep width/height == viewBox units)
             // --------------------------------------------------
+            // ✅ keep the vanity visually fixed when we expand the svg for the overlay
+            const panel = document.getElementById("drawing-panel");
+            const prevScrollLeft = panel ? panel.scrollLeft : 0;
+            const prevScrollTop = panel ? panel.scrollTop : 0;
+
+            const prevW = Number(svg.getAttribute("width")) || 0;
+            const prevH = Number(svg.getAttribute("height")) || 0;
+
             const vb = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
 
             const curVW = vb && isFinite(vb.width) && vb.width > 0 ? vb.width : Number(svg.getAttribute("width")) || 0;
@@ -5926,7 +5934,20 @@ recommended height is 30&quot; off the floor.">?</button>
                 svg.setAttribute("viewBox", `0 0 ${needW} ${needH}`);
                 svg.setAttribute("width", `${needW}`);
                 svg.setAttribute("height", `${needH}`);
+
+                // ✅ restore scroll so the drawing doesn't "shift" when the svg grows
+                const grew =
+                    (needW > prevW && prevW > 0) ||
+                    (needH > prevH && prevH > 0);
+
+                if (panel && grew) {
+                    requestAnimationFrame(() => {
+                        panel.scrollLeft = prevScrollLeft;
+                        panel.scrollTop = prevScrollTop;
+                    });
+                }
             }
+
 
             // --------------------------------------------------
             // POSITION TEXT + BUTTONS (same styling/behavior)
