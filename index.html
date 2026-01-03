@@ -6267,6 +6267,23 @@ recommended height is 30&quot; off the floor.">?</button>
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
+            const panel = document.getElementById("drawing-panel");
+
+            // ✅ Preserve scroll position so the vanity doesn't "shift" when viewBox grows
+            const prevScrollLeft = panel ? panel.scrollLeft : 0;
+            const prevScrollTop = panel ? panel.scrollTop : 0;
+
+            // ✅ Preserve prior viewport transform to avoid flicker after pinch-zoom
+            let prevViewportTransform = "";
+            try {
+                const prevG = svg.querySelector("#mobileViewport");
+                if (prevG) prevViewportTransform = prevG.getAttribute("transform") || "";
+            } catch (e) { }
+
+            // ✅ Track prior SVG size so we can detect "growth" (buttons/labels)
+            const prevW = Number(svg.getAttribute("width")) || 0;
+            const prevH = Number(svg.getAttribute("height")) || 0;
+
             clearSvg(svg);
 
             // =========================================================
@@ -6275,6 +6292,12 @@ recommended height is 30&quot; off the floor.">?</button>
             const ns = "http://www.w3.org/2000/svg";
             const viewportG = document.createElementNS(ns, "g");
             viewportG.setAttribute("id", "mobileViewport");
+
+            // ✅ Apply transform BEFORE drawing to eliminate the "tweak out" flash
+            if (prevViewportTransform) {
+                viewportG.setAttribute("transform", prevViewportTransform);
+            }
+
             svg.appendChild(viewportG);
 
             // 🔒 APPLY VIEWPORT SCALE (ONCE)
@@ -6318,14 +6341,14 @@ recommended height is 30&quot; off the floor.">?</button>
                 effectivePx = basePx * (MAX_DRAWING_HEIGHT_PX / rawHeightPx);
             }
 
-            // ✅ KEY: if expanded mode has a locked px, always use it
+            // ✅ keep: expanded mode scale lock
             const isExpanded = document.body.classList.contains("drawing-expanded");
             const lockedPx = Number(svg.dataset.lockedEffectivePx);
             if (isExpanded && isFinite(lockedPx) && lockedPx > 0) {
                 effectivePx = lockedPx;
             }
 
-            // ✅ KEY: remember what we actually drew at (used to lock expanded later)
+            // remember what we actually drew at
             svg.dataset.lastEffectivePx = String(effectivePx);
 
             // -------------------------------
@@ -6337,7 +6360,7 @@ recommended height is 30&quot; off the floor.">?</button>
             const RIGHT_GUTTER_PX = 22 * effectivePx;
 
             const TOP_GUTTER_PX =
-                (SINK_DIM_OFFSET_IN + 7) * effectivePx; // ⬅ extra safety space above first dim chain
+                (SINK_DIM_OFFSET_IN + 7) * effectivePx;
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
 
@@ -6354,52 +6377,61 @@ recommended height is 30&quot; off the floor.">?</button>
                 obj.model.scale.originX = LEFT_GUTTER_PX;
                 obj.model.scale.originY = TOP_GUTTER_PX;
 
-                // ✅ draw INTO the wrapper group (not the svg)
                 drawVanityAtX(viewportG, obj.model, cursorX);
 
                 cursorX += obj.model.widthIn * effectivePx + GAP_PX;
             });
 
             // -------------------------------
-            // 6) FINAL VIEWPORT SIZE (BBOX-BASED → NO MORE "INVISIBLE WALL")
+            // 6) FINAL VIEWPORT SIZE (BBOX-BASED)
             // -------------------------------
-            // Use what was ACTUALLY drawn to size the viewBox so nothing clips.
             let bbox;
             try {
                 bbox = viewportG.getBBox();
             } catch (e) {
-                // If bbox fails for any reason, bail safely.
                 return;
             }
 
-            // Ensure the viewBox starts at 0,0 (your drawing expects that),
-            // but expand width/height to fully contain the drawn content + gutters.
             const totalWidth = Math.ceil(Math.max(bbox.x + bbox.width + RIGHT_GUTTER_PX, 1));
             const totalHeight = Math.ceil(Math.max(bbox.y + bbox.height + BOTTOM_GUTTER_PX, 1));
 
-            // Keep viewBox for consistency, but ALSO set explicit pixel size so
-            // 1 viewBox unit == 1 CSS px, enabling scroll + stable scale.
             svg.setAttribute("viewBox", `0 0 ${totalWidth} ${totalHeight}`);
             svg.setAttribute("width", `${totalWidth}`);
             svg.setAttribute("height", `${totalHeight}`);
 
-            // ✅ KEY: re-apply the current mobile pan/zoom AFTER redraw
-            requestAnimationFrame(() => {
-                if (typeof applyMobileTransform === "function") applyMobileTransform();
-            });
+            // ✅ Re-apply transform once more after sizing (safe; keeps view stable)
+            if (typeof applyMobileTransform === "function") {
+                applyMobileTransform();
+            }
+
+            // ✅ If the SVG grew (buttons/labels), restore scroll so vanity doesn't shift
+            const grew =
+                (totalWidth > prevW && prevW > 0) ||
+                (totalHeight > prevH && prevH > 0);
+
+            if (panel && grew) {
+                requestAnimationFrame(() => {
+                    panel.scrollLeft = prevScrollLeft;
+                    panel.scrollTop = prevScrollTop;
+                });
+            }
 
             // -------------------------------
-            // 7) CENTER THE SCROLLER (DESKTOP + MOBILE)
+            // 7) CENTER THE SCROLLER (ONLY on first stable draw)
             // -------------------------------
-            const panel = document.getElementById("drawing-panel");
-
-            // ✅ KEY: do NOT re-center if user has panned/zoomed (prevents snap-to-center)
             const userHasMovedView =
                 (typeof mobileScale === "number" && mobileScale !== 1) ||
                 (typeof mobileTranslateX === "number" && mobileTranslateX !== 0) ||
                 (typeof mobileTranslateY === "number" && mobileTranslateY !== 0);
 
-            if (panel && !document.body.classList.contains("drawing-expanded") && !userHasMovedView) {
+            const hasSelection = (selectedSectionIndex != null);
+
+            if (panel &&
+                !document.body.classList.contains("drawing-expanded") &&
+                !userHasMovedView &&
+                !hasSelection &&
+                !grew
+            ) {
                 requestAnimationFrame(() => {
                     const maxX = Math.max(0, svg.getBoundingClientRect().width - panel.clientWidth);
                     const maxY = Math.max(0, svg.getBoundingClientRect().height - panel.clientHeight);
@@ -6409,7 +6441,6 @@ recommended height is 30&quot; off the floor.">?</button>
                 });
             }
         }
-
 
         // DRAW PIPELINE
         // Order matters. Geometry is computed once per frame.
