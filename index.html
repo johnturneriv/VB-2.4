@@ -6102,14 +6102,21 @@ recommended height is 30&quot; off the floor.">?</button>
                 const activeSvg = getActiveDrawingSvg();
                 if (!activeSvg) return;
 
+                // ✅ If the drawing is minimized, DO NOT clear/redraw now.
+                // Navigating pages while minimized can make SVG size 0,
+                // which causes doActualRunDrawing() to clear and then bail.
+                // Instead: mark "needs redraw" and wait until user expands.
+                if (document.body.classList.contains("drawing-minimized")) {
+                    activeSvg.dataset.needsRedrawOnExpand = "1";
+                    return;
+                }
+
                 // ✅ Let SVG grow wider than the panel when needed (enables horizontal scroll)
                 activeSvg.style.height = "100%";
                 activeSvg.style.width = "auto";
 
                 // 🔒 DO NOT remove width / height attributes.
                 // doActualRunDrawing() sets real pixel dimensions for scrolling.
-
-
 
                 // If layout isn't settled yet (or svg width doesn't match parent),
                 // skip this draw and retry once on the next frame.
@@ -6123,8 +6130,6 @@ recommended height is 30&quot; off the floor.">?</button>
                 const looksUnstable =
                     !isFinite(svgW) || svgW <= 0 ||
                     !isFinite(parentW) || parentW <= 0;
-
-
 
                 if (looksUnstable && window.__vbLayoutRetry < 1) {
                     window.__vbLayoutRetry += 1;
@@ -8569,10 +8574,21 @@ recommended height is 30&quot; off the floor.">?</button>
             function setMinimized(on) {
                 document.body.classList.toggle("drawing-minimized", !!on);
 
-                // ✅ keep ALL THREE buttons visible (no hiding full screen / price)
-                // ✅ toggle button text switches between minimize/expand
+                // keep ALL THREE buttons visible
                 toggleBtn.textContent = on ? "expand" : "minimize";
+
+                // ✅ when expanding again, force a redraw if we skipped while minimized
+                if (!on) {
+                    requestAnimationFrame(() => {
+                        const svg = getActiveDrawingSvg();
+                        if (svg && svg.dataset.needsRedrawOnExpand === "1") {
+                            delete svg.dataset.needsRedrawOnExpand;
+                            updateDrawing();
+                        }
+                    });
+                }
             }
+
 
             // default state: NOT minimized
             setMinimized(false);
