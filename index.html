@@ -4609,7 +4609,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 l.setAttribute("x2", x2);
                 l.setAttribute("y2", y2);
                 l.setAttribute("stroke", "#000");
-                l.setAttribute("stroke-width", "0.5");
+                l.setAttribute("stroke-width", "0.3");
                 svg.appendChild(l);
             }
 
@@ -5733,6 +5733,23 @@ recommended height is 30&quot; off the floor.">?</button>
 
             const ns = "http://www.w3.org/2000/svg";
 
+            // =====================================================
+            // ✅ Overlay layer (always on top, even over sinks)
+            // =====================================================
+            const prev = svg.querySelector("#sectionControlsOverlay");
+            if (prev) prev.remove();
+
+            const overlayLayer = document.createElementNS(ns, "g");
+            overlayLayer.setAttribute("id", "sectionControlsOverlay");
+            svg.appendChild(overlayLayer);
+
+            // After the whole draw finishes (including sinks), move overlay to top.
+            requestAnimationFrame(() => {
+                if (overlayLayer && overlayLayer.parentNode) {
+                    overlayLayer.parentNode.appendChild(overlayLayer);
+                }
+            });
+
             // --------------------------------------------------
             // SECTION CONTROL BUTTONS (no side effects yet)
             // --------------------------------------------------
@@ -5748,12 +5765,17 @@ recommended height is 30&quot; off the floor.">?</button>
                     buttons.push({ id: "remove-drawer", label: "remove drawer" });
                 }
 
-                const dimsHidden = sectionOverrides[selectedSectionIndex]?.drawerDimsHidden;
-                buttons.push({
-                    id: "toggle-drawer-dims",
-                    label: dimsHidden ? "show dims" : "hide dims"
-                });
+                // ✅ Only show hide/show dims AFTER user changes drawer count (override dims actually appear)
+                const DEFAULT_DRAWER_COUNT = 3;
+                const hasDrawerOverride = (current !== DEFAULT_DRAWER_COUNT);
 
+                if (hasDrawerOverride) {
+                    const dimsHidden = sectionOverrides[selectedSectionIndex]?.drawerDimsHidden;
+                    buttons.push({
+                        id: "toggle-drawer-dims",
+                        label: dimsHidden ? "show dims" : "hide dims"
+                    });
+                }
             }
 
 
@@ -5774,183 +5796,104 @@ recommended height is 30&quot; off the floor.">?</button>
                 if (currentLeaves === 1 && maxLeaves === 2) {
                     buttons.push({ id: "make-two-doors", label: "make two doors" });
                 }
-
                 if (currentLeaves === 2 && minLeaves === 1) {
                     buttons.push({ id: "make-one-door", label: "make one door" });
                 }
-                // -----------------------------
-                // INTERIOR SHELF TOGGLE
-                // -----------------------------
-                // ❌ hide interior shelf option when global shelfBelow is enabled
-                if (!model.shelfBelow) {
-                    const hasShelf =
-                        sectionOverrides[selectedSectionIndex]?.interiorShelf === true;
-
-                    buttons.push({
-                        id: "toggle-interior-shelf",
-                        label: hasShelf ? "remove interior shelf" : "add interior shelf"
-                    });
-                }
-
 
             }
 
+            // -----------------------------
+            // INTERIOR SHELF TOGGLE
+            // -----------------------------
+            // ❌ hide interior shelf option when global shelfBelow is enabled
+            if (!model.shelfBelow) {
+                const hasShelf =
+                    sectionOverrides[selectedSectionIndex]?.interiorShelf === true;
 
-
-
-            // --------------------------------------------------
-            // CREATE TEXT FIRST (to measure size)
-            // --------------------------------------------------
-            const textNodes = [];
-            let maxTextW = 0;
-            let lineH = 0;
-
-            buttons.forEach(btn => {
-                const t = document.createElementNS(ns, "text");
-                t.textContent = btn.label;
-                t.setAttribute("font-size", 12);
-                t.setAttribute("font-family", "Raleway, sans-serif");
-                t.setAttribute("fill", "#111");
-                t.setAttribute("visibility", "hidden");
-                svg.appendChild(t);
-
-                const bb = t.getBBox();
-                maxTextW = Math.max(maxTextW, bb.width);
-                lineH = Math.max(lineH, bb.height);
-
-                textNodes.push({ btn, text: t, bb });
-            });
-
-
-            const PADDING_X = 12;
-            const PADDING_Y = 10;
-            const GAP_Y = 6;
-
-            const menuW = maxTextW + PADDING_X * 2;
-            const menuH =
-                buttons.length * lineH +
-                (buttons.length - 1) * GAP_Y +
-                PADDING_Y * 2;
-
-
-            // --------------------------------------------------
-            // HORIZONTAL PLACEMENT
-            // --------------------------------------------------
-            const isLast = selectedSectionIndex === sections.length - 1;
-            const placeRight = !isLast;
-
-            let menuX = placeRight
-                ? faceX + faceW + 8
-                : faceX - menuW - 8;
-
-            // Clamp inside cabinet bounds
-            const cabLeft = ox;
-            const cabRight = ox + model.widthIn * px;
-
-            if (menuX + menuW > cabRight) {
-                menuX = cabRight - menuW;
-            }
-            if (menuX < cabLeft) {
-                menuX = cabLeft;
+                buttons.push({
+                    id: "toggle-interior-shelf",
+                    label: hasShelf ? "remove interior shelf" : "add interior shelf"
+                });
             }
 
-            // --------------------------------------------------
-            // VERTICAL PLACEMENT
-            // --------------------------------------------------
-            let menuY = faceTop + 6;
-
-            const maxY = openBottomY - menuH;
-            if (menuY > maxY) {
-                menuY = maxY;
-            }
-
-
+            if (!buttons.length) return;
 
             // --------------------------------------------------
-            // POSITION TEXT
+            // BUTTON LAYOUT
             // --------------------------------------------------
-            let curY = menuY + PADDING_Y;
+            const btnW = 110;
+            const btnH = 26;
+            const GAP_Y = 8;
 
-            textNodes.forEach(({ btn, text, bb }) => {
-                const btnH = lineH + 6;
+            let curY = faceTop + 14; // start near top of selected face
 
-                // button background
+            // light tint behind stack
+            const totalH = buttons.length * btnH + (buttons.length - 1) * GAP_Y + 12;
+
+            const t = document.createElementNS(ns, "rect");
+            t.setAttribute("x", faceX + faceW - btnW - 12);
+            t.setAttribute("y", curY - 6);
+            t.setAttribute("width", btnW + 10);
+            t.setAttribute("height", totalH);
+            t.setAttribute("rx", 8);
+            t.setAttribute("fill", "rgba(0,0,0,0.06)");
+            t.setAttribute("stroke", "rgba(0,0,0,0.12)");
+            overlayLayer.appendChild(t);
+
+            buttons.forEach((btn) => {
+
+                const x = faceX + faceW - btnW - 7;
+                const y = curY;
+
                 const r = document.createElementNS(ns, "rect");
-                r.setAttribute("x", menuX);
-                r.setAttribute("y", curY);
-                r.setAttribute("width", menuW);
+                r.setAttribute("x", x);
+                r.setAttribute("y", y);
+                r.setAttribute("width", btnW);
                 r.setAttribute("height", btnH);
-                r.setAttribute("rx", 3);
-                r.setAttribute("fill", "#e6f0ff");      // 🔹 light blue default
-                r.setAttribute("stroke", "#3b82f6");    // 🔹 section outline blue
-                r.setAttribute("stroke-width", "1");
+                r.setAttribute("rx", 8);
+                r.setAttribute("fill", "#1a73e8"); // blue
+                r.setAttribute("stroke", "#0b57d0");
                 r.style.cursor = "pointer";
+                overlayLayer.appendChild(r);
 
-                // hover
-                r.addEventListener("mouseenter", () => {
-                    r.setAttribute("fill", "#d6e6ff");  // slightly stronger blue
-                });
-                r.addEventListener("mouseleave", () => {
-                    r.setAttribute("fill", "#e6f0ff");  // back to default blue
-                });
+                const text = document.createElementNS(ns, "text");
+                text.setAttribute("x", x + btnW / 2);
+                text.setAttribute("y", y + btnH / 2 + 4);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("font-size", "12");
+                text.setAttribute("fill", "#fff");
+                text.textContent = btn.label;
+                text.setAttribute("pointer-events", "none");
+                overlayLayer.appendChild(text); // ✅ TEXT ABOVE BUTTON RECT
 
-
-
-                // click
                 r.addEventListener("click", (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
 
-                    if (!sectionOverrides[selectedSectionIndex]) {
-                        sectionOverrides[selectedSectionIndex] = {};
-                    }
+                    const o = (sectionOverrides[selectedSectionIndex] ||= {});
 
-                    const o = sectionOverrides[selectedSectionIndex];
-
-                    // -----------------------------
-                    // ADD DRAWER
-                    // -----------------------------
                     if (btn.id === "add-drawer") {
-                        const current = getDrawerCountForSection(
-                            model,
-                            selectedSectionIndex,
-                            3
-                        );
-                        o.drawerCount = current + 1;
+                        const cur = o.drawerCount ?? 3;
+                        o.drawerCount = cur + 1;
                         updateDrawing();
                         return;
                     }
 
-                    // -----------------------------
-                    // REMOVE DRAWER
-                    // -----------------------------
                     if (btn.id === "remove-drawer") {
-                        const current = getDrawerCountForSection(
-                            model,
-                            selectedSectionIndex,
-                            3
-                        );
-
-                        if (current <= 1) return;
-
-                        const next = current - 1;
-                        const baseCount = model.shelfBelow ? 2 : 3;
-
-                        if (next === baseCount) {
-                            delete o.drawerCount;
-                        } else {
-                            o.drawerCount = next;
-                        }
-
+                        const cur = o.drawerCount ?? 3;
+                        o.drawerCount = Math.max(1, cur - 1);
                         updateDrawing();
                         return;
-
                     }
 
-                    // -----------------------------
-                    // DOOR LEAF CONTROLS
-                    // -----------------------------
-                    if (btn.id === "make-one-door") {
-                        o.doorLeaves = 1;
+                    if (btn.id === "toggle-drawer-dims") {
+                        o.drawerDimsHidden = !o.drawerDimsHidden;
+                        updateDrawing();
+                        return;
+                    }
+
+                    if (btn.id === "toggle-interior-shelf") {
+                        o.interiorShelf = !(o.interiorShelf === true);
                         updateDrawing();
                         return;
                     }
@@ -5961,32 +5904,12 @@ recommended height is 30&quot; off the floor.">?</button>
                         return;
                     }
 
-                    if (btn.id === "toggle-drawer-dims") {
-                        o.drawerDimsHidden = !o.drawerDimsHidden;
+                    if (btn.id === "make-one-door") {
+                        o.doorLeaves = 1;
                         updateDrawing();
                         return;
                     }
-                    if (btn.id === "toggle-interior-shelf") {
-                        o.interiorShelf = !o.interiorShelf;
-                        updateDrawing();
-                        return;
-                    }
-
-
                 });
-
-                svg.appendChild(r);
-
-
-
-                // text
-                text.setAttribute("x", menuX + 10);
-                text.setAttribute("y", curY + btnH / 2 + bb.height / 2 - 1);
-                text.setAttribute("visibility", "visible");
-                text.setAttribute("pointer-events", "none");
-
-                svg.appendChild(text); // ✅ MOVE TEXT ABOVE BUTTON RECT
-
 
                 curY += btnH + GAP_Y;
             });
@@ -7690,6 +7613,27 @@ recommended height is 30&quot; off the floor.">?</button>
 
             if (drawingEngineInitialized) return;
             drawingEngineInitialized = true;
+
+            // ✅ Clear selected section when user focuses any form field (so highlight doesn't stick)
+            if (!window.__vbClearSectionOnFocus) {
+                window.__vbClearSectionOnFocus = true;
+
+                document.addEventListener("focusin", (e) => {
+                    const t = e.target;
+                    if (!t) return;
+
+                    const tag = (t.tagName || "").toUpperCase();
+                    if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA") return;
+
+                    // don't clear when focusing anything inside the drawing area / mobile bar
+                    if (t.closest("#drawing-panel") || t.closest("#mobile-drawing-bar")) return;
+
+                    if (selectedSectionIndex != null) {
+                        selectedSectionIndex = null;
+                        updateDrawing();
+                    }
+                });
+            }
 
 
             // =====================================================
