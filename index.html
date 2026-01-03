@@ -5722,8 +5722,10 @@ recommended height is 30&quot; off the floor.">?</button>
             const ox = scale.originX;
 
             const { openTopY, openBottomY } = computeCaseOpeningVertical(model);
+
             const openingHeight = openBottomY - openTopY;
             if (openingHeight <= 0) return;
+
 
             const sec = sections[selectedSectionIndex];
 
@@ -5733,21 +5735,21 @@ recommended height is 30&quot; off the floor.">?</button>
 
             const ns = "http://www.w3.org/2000/svg";
 
-            // =====================================================
-            // ✅ Overlay layer (always on top, even over sinks)
-            // =====================================================
-            const prev = svg.querySelector("#sectionControlsOverlay");
-            if (prev) prev.remove();
+            // remove any prior overlay group so we don't stack duplicates
+            const oldOverlay = svg.querySelector("#sectionControlsOverlay");
+            if (oldOverlay) oldOverlay.remove();
 
-            const overlayLayer = document.createElementNS(ns, "g");
-            overlayLayer.setAttribute("id", "sectionControlsOverlay");
-            svg.appendChild(overlayLayer);
+            // draw everything into an overlay group we can force on top
+            const overlayG = document.createElementNS(ns, "g");
+            overlayG.setAttribute("id", "sectionControlsOverlay");
+            svg.appendChild(overlayG);
 
-            // After the whole draw finishes (including sinks), move overlay to top.
+            // after the full draw finishes (including sinks/dims), force overlay to the top
             requestAnimationFrame(() => {
-                if (overlayLayer && overlayLayer.parentNode) {
-                    overlayLayer.parentNode.appendChild(overlayLayer);
-                }
+                try {
+                    const g = svg.querySelector("#sectionControlsOverlay");
+                    if (g && g.parentNode) g.parentNode.appendChild(g);
+                } catch (e) { }
             });
 
             // --------------------------------------------------
@@ -5765,11 +5767,12 @@ recommended height is 30&quot; off the floor.">?</button>
                     buttons.push({ id: "remove-drawer", label: "remove drawer" });
                 }
 
-                // ✅ Only show hide/show dims AFTER user changes drawer count (override dims actually appear)
-                const DEFAULT_DRAWER_COUNT = 3;
-                const hasDrawerOverride = (current !== DEFAULT_DRAWER_COUNT);
+                // show "hide dims" ONLY when drawer count has been overridden
+                const hasDrawerCountOverride =
+                    sectionOverrides[selectedSectionIndex] &&
+                    typeof sectionOverrides[selectedSectionIndex].drawerCount === "number";
 
-                if (hasDrawerOverride) {
+                if (hasDrawerCountOverride) {
                     const dimsHidden = sectionOverrides[selectedSectionIndex]?.drawerDimsHidden;
                     buttons.push({
                         id: "toggle-drawer-dims",
@@ -5778,110 +5781,229 @@ recommended height is 30&quot; off the floor.">?</button>
                 }
             }
 
-
             if (sec.role === "door") {
                 const { minLeaves, maxLeaves } = getDoorLeafRulesForSection(sec);
 
-                // determine current leaf count from drawing state
                 // default = geometry-based
                 let currentLeaves = (sec.widthIn >= 20 ? 2 : 1);
 
-                // if an override exists, trust it
+                // override if exists
                 const o = sectionOverrides[selectedSectionIndex];
                 if (o && typeof o.doorLeaves === "number") {
                     currentLeaves = o.doorLeaves;
                 }
 
-                // show ONLY valid transitions
                 if (currentLeaves === 1 && maxLeaves === 2) {
                     buttons.push({ id: "make-two-doors", label: "make two doors" });
                 }
+
                 if (currentLeaves === 2 && minLeaves === 1) {
                     buttons.push({ id: "make-one-door", label: "make one door" });
                 }
 
-            }
+                // hide interior shelf option when global shelfBelow is enabled
+                if (!model.shelfBelow) {
+                    const hasShelf =
+                        sectionOverrides[selectedSectionIndex]?.interiorShelf === true;
 
-            // -----------------------------
-            // INTERIOR SHELF TOGGLE
-            // -----------------------------
-            // ❌ hide interior shelf option when global shelfBelow is enabled
-            if (!model.shelfBelow) {
-                const hasShelf =
-                    sectionOverrides[selectedSectionIndex]?.interiorShelf === true;
-
-                buttons.push({
-                    id: "toggle-interior-shelf",
-                    label: hasShelf ? "remove interior shelf" : "add interior shelf"
-                });
+                    buttons.push({
+                        id: "toggle-interior-shelf",
+                        label: hasShelf ? "remove interior shelf" : "add interior shelf"
+                    });
+                }
             }
 
             if (!buttons.length) return;
 
             // --------------------------------------------------
-            // BUTTON LAYOUT
+            // CREATE TEXT FIRST (to measure size)
             // --------------------------------------------------
-            const btnW = 110;
-            const btnH = 26;
-            const GAP_Y = 8;
+            const textNodes = [];
+            let maxTextW = 0;
+            let lineH = 0;
 
-            let curY = faceTop + 14; // start near top of selected face
+            buttons.forEach(btn => {
+                const t = document.createElementNS(ns, "text");
+                t.textContent = btn.label;
+                t.setAttribute("font-size", 12);
+                t.setAttribute("font-family", "Raleway, sans-serif");
+                t.setAttribute("fill", "#111");
+                t.setAttribute("visibility", "hidden");
 
-            // light tint behind stack
-            const totalH = buttons.length * btnH + (buttons.length - 1) * GAP_Y + 12;
+                overlayG.appendChild(t);
 
-            const t = document.createElementNS(ns, "rect");
-            t.setAttribute("x", faceX + faceW - btnW - 12);
-            t.setAttribute("y", curY - 6);
-            t.setAttribute("width", btnW + 10);
-            t.setAttribute("height", totalH);
-            t.setAttribute("rx", 8);
-            t.setAttribute("fill", "rgba(0,0,0,0.06)");
-            t.setAttribute("stroke", "rgba(0,0,0,0.12)");
-            overlayLayer.appendChild(t);
+                const bb = t.getBBox();
+                maxTextW = Math.max(maxTextW, bb.width);
+                lineH = Math.max(lineH, bb.height);
 
-            buttons.forEach((btn) => {
+                textNodes.push({ btn, text: t, bb });
+            });
 
-                const x = faceX + faceW - btnW - 7;
-                const y = curY;
+            const PADDING_X = 12;
+            const PADDING_Y = 10;
+            const GAP_Y = 6;
+
+            const menuW = maxTextW + PADDING_X * 2;
+            const menuH =
+                buttons.length * lineH +
+                (buttons.length - 1) * GAP_Y +
+                PADDING_Y * 2;
+
+            // --------------------------------------------------
+            // HORIZONTAL PLACEMENT (NEVER COVER SELECTED SECTION)
+            // --------------------------------------------------
+            const cabLeft = ox;
+            const cabRight = ox + model.widthIn * px;
+
+            const GAP_X = 8;
+
+            // Candidates:
+            const insideRightX = faceX + faceW + GAP_X;
+            const insideLeftX = faceX - menuW - GAP_X;
+
+            // If we must go outside, keep it immediately adjacent to the selected section (consistent gap)
+            const outsideRightX = faceX + faceW + GAP_X;
+
+            // NOTE: we intentionally avoid negative-x outside-left because your viewBox starts at 0.
+
+            // Helper: does X overlap the selected section span?
+            function overlapsSelected(x) {
+                const a0 = x;
+                const a1 = x + menuW;
+                const b0 = faceX;
+                const b1 = faceX + faceW;
+                return (a0 < b1) && (a1 > b0);
+            }
+
+            // Helper: fits inside cabinet bounds?
+            function fitsInsideCab(x) {
+                return (x >= cabLeft) && (x + menuW <= cabRight);
+            }
+
+            let menuX;
+
+            if (sections.length > 1) {
+                // Prefer inside (to keep it within vanity outline) as long as it doesn't overlap selected.
+                if (fitsInsideCab(insideRightX) && !overlapsSelected(insideRightX)) {
+                    menuX = insideRightX;
+                } else if (fitsInsideCab(insideLeftX) && !overlapsSelected(insideLeftX)) {
+                    menuX = insideLeftX;
+                } else {
+                    // If inside would be forced to overlap, allow outside.
+                    menuX = outsideRightX;
+                }
+            } else {
+                // Single section: inside placement would always overlap → go outside.
+                menuX = outsideRightX;
+            }
+
+            // --------------------------------------------------
+            // VERTICAL PLACEMENT (same look as before)
+            // --------------------------------------------------
+            let menuY = faceTop + 6;
+
+            const maxY = openBottomY - menuH;
+            if (menuY > maxY) {
+                menuY = maxY;
+            }
+            if (menuY < 0) menuY = 0;
+
+            // --------------------------------------------------
+            // ✅ Ensure the SVG/viewBox is large enough so the menu never clips
+            // (This does NOT change scale in your system because you keep width/height == viewBox units)
+            // --------------------------------------------------
+            const vb = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+
+            const curVW = vb && isFinite(vb.width) && vb.width > 0 ? vb.width : Number(svg.getAttribute("width")) || 0;
+            const curVH = vb && isFinite(vb.height) && vb.height > 0 ? vb.height : Number(svg.getAttribute("height")) || 0;
+
+            const PAD = 12;
+
+            const needW = Math.ceil(Math.max(curVW, menuX + menuW + PAD));
+            const needH = Math.ceil(Math.max(curVH, menuY + menuH + PAD));
+
+            if (needW > curVW || needH > curVH) {
+                svg.setAttribute("viewBox", `0 0 ${needW} ${needH}`);
+                svg.setAttribute("width", `${needW}`);
+                svg.setAttribute("height", `${needH}`);
+            }
+
+            // --------------------------------------------------
+            // POSITION TEXT + BUTTONS (same styling/behavior)
+            // --------------------------------------------------
+            let curY = menuY + PADDING_Y;
+
+            textNodes.forEach(({ btn, text, bb }) => {
+                const btnH = lineH + 8;
 
                 const r = document.createElementNS(ns, "rect");
-                r.setAttribute("x", x);
-                r.setAttribute("y", y);
-                r.setAttribute("width", btnW);
+                r.setAttribute("x", menuX);
+                r.setAttribute("y", curY);
+                r.setAttribute("width", menuW);
                 r.setAttribute("height", btnH);
-                r.setAttribute("rx", 8);
-                r.setAttribute("fill", "#1a73e8"); // blue
-                r.setAttribute("stroke", "#0b57d0");
+                r.setAttribute("rx", 3);
+                r.setAttribute("fill", "#e6f0ff");
+                r.setAttribute("stroke", "#3b82f6");
+                r.setAttribute("stroke-width", "1");
                 r.style.cursor = "pointer";
-                overlayLayer.appendChild(r);
 
-                const text = document.createElementNS(ns, "text");
-                text.setAttribute("x", x + btnW / 2);
-                text.setAttribute("y", y + btnH / 2 + 4);
-                text.setAttribute("text-anchor", "middle");
-                text.setAttribute("font-size", "12");
-                text.setAttribute("fill", "#fff");
-                text.textContent = btn.label;
-                text.setAttribute("pointer-events", "none");
-                overlayLayer.appendChild(text); // ✅ TEXT ABOVE BUTTON RECT
+                r.addEventListener("mouseenter", () => {
+                    r.setAttribute("fill", "#d6e6ff");
+                });
+                r.addEventListener("mouseleave", () => {
+                    r.setAttribute("fill", "#e6f0ff");
+                });
 
                 r.addEventListener("click", (e) => {
-                    e.preventDefault();
                     e.stopPropagation();
 
-                    const o = (sectionOverrides[selectedSectionIndex] ||= {});
+                    if (!sectionOverrides[selectedSectionIndex]) {
+                        sectionOverrides[selectedSectionIndex] = {};
+                    }
+
+                    const o = sectionOverrides[selectedSectionIndex];
 
                     if (btn.id === "add-drawer") {
-                        const cur = o.drawerCount ?? 3;
-                        o.drawerCount = cur + 1;
+                        const current = getDrawerCountForSection(
+                            model,
+                            selectedSectionIndex,
+                            3
+                        );
+                        o.drawerCount = current + 1;
                         updateDrawing();
                         return;
                     }
 
                     if (btn.id === "remove-drawer") {
-                        const cur = o.drawerCount ?? 3;
-                        o.drawerCount = Math.max(1, cur - 1);
+                        const current = getDrawerCountForSection(
+                            model,
+                            selectedSectionIndex,
+                            3
+                        );
+
+                        if (current <= 1) return;
+
+                        const next = current - 1;
+                        const baseCount = model.shelfBelow ? 2 : 3;
+
+                        if (next === baseCount) {
+                            delete o.drawerCount;
+                        } else {
+                            o.drawerCount = next;
+                        }
+
+                        updateDrawing();
+                        return;
+                    }
+
+                    if (btn.id === "make-one-door") {
+                        o.doorLeaves = 1;
+                        updateDrawing();
+                        return;
+                    }
+
+                    if (btn.id === "make-two-doors") {
+                        o.doorLeaves = 2;
                         updateDrawing();
                         return;
                     }
@@ -5893,23 +6015,20 @@ recommended height is 30&quot; off the floor.">?</button>
                     }
 
                     if (btn.id === "toggle-interior-shelf") {
-                        o.interiorShelf = !(o.interiorShelf === true);
-                        updateDrawing();
-                        return;
-                    }
-
-                    if (btn.id === "make-two-doors") {
-                        o.doorLeaves = 2;
-                        updateDrawing();
-                        return;
-                    }
-
-                    if (btn.id === "make-one-door") {
-                        o.doorLeaves = 1;
+                        o.interiorShelf = !o.interiorShelf;
                         updateDrawing();
                         return;
                     }
                 });
+
+                overlayG.appendChild(r);
+
+                text.setAttribute("x", menuX + 10);
+                text.setAttribute("y", curY + btnH / 2 + bb.height / 2 - 1);
+                text.setAttribute("visibility", "visible");
+                text.setAttribute("pointer-events", "none");
+
+                overlayG.appendChild(text);
 
                 curY += btnH + GAP_Y;
             });
