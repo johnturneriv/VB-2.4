@@ -6068,11 +6068,18 @@ recommended height is 30&quot; off the floor.">?</button>
             const contentHIn = heightIn + MARGIN_TOP_IN + MARGIN_BOTTOM_IN;
 
             // ✅ KEY CHANGE:
-            // Fit ONLY by HEIGHT so long vanities do NOT shrink.
-            const fitPxPerInchByHeight = svgH / contentHIn;
+            let px;
 
-            // Final scale (never exceed base unless SVG is huge)
-            const px = Math.min(BASE_PX_PER_INCH, fitPxPerInchByHeight);
+            // ✅ In expanded (full screen) mode, NEVER pre-shrink based on SVG size.
+            // Let doActualRunDrawing() handle fitting using real content bounds.
+            if (document.body.classList.contains("drawing-expanded")) {
+                px = BASE_PX_PER_INCH;
+            } else {
+                // Fit ONLY by HEIGHT so long vanities do NOT shrink.
+                const fitPxPerInchByHeight = svgH / contentHIn;
+                px = Math.min(BASE_PX_PER_INCH, fitPxPerInchByHeight);
+            }
+
 
             // ✅ KEY CHANGE:
             // Anchor to left margin (so the left end is visible and the rest can scroll)
@@ -6318,7 +6325,6 @@ recommended height is 30&quot; off the floor.">?</button>
                     tallestHeightIn = Math.max(tallestHeightIn, obj.model.heightIn);
                 }
             });
-            svg.dataset.lastTallestHeightIn = String(tallestHeightIn || 0);
 
 
             // -------------------------------
@@ -6356,9 +6362,14 @@ recommended height is 30&quot; off the floor.">?</button>
             // -------------------------------
             const SINK_DIM_OFFSET_IN = 7;
 
-            // ✅ symmetric fixed gutters so the vanity stays centered by default
-            const LEFT_GUTTER_PX = Math.max(22 * effectivePx, 320);
-            const RIGHT_GUTTER_PX = Math.max(22 * effectivePx, 320);
+            // ✅ In expanded mode, do NOT use huge side gutters (they make full screen look tiny)
+            const SIDE_GUTTER_PX = isExpanded
+                ? Math.max(6 * effectivePx, 40)     // small padding for full screen
+                : Math.max(22 * effectivePx, 320);  // big padding for non-expanded scroll view
+
+            const LEFT_GUTTER_PX = SIDE_GUTTER_PX;
+            const RIGHT_GUTTER_PX = SIDE_GUTTER_PX;
+
 
             const TOP_GUTTER_PX =
                 (SINK_DIM_OFFSET_IN + 7) * effectivePx;
@@ -6408,6 +6419,44 @@ recommended height is 30&quot; off the floor.">?</button>
             svg.setAttribute("width", `${totalWidth}`);
             svg.setAttribute("height", `${totalHeight}`);
 
+            // =========================================================
+            // ✅ EXPANDED MODE: ONE-TIME FIT (dims + labels INCLUDED)
+            // =========================================================
+            if (panel && document.body.classList.contains("drawing-expanded") && svg.dataset.fitExpandedOnce === "1") {
+
+                const panelW = panel.clientWidth || 0;
+                const panelH = panel.clientHeight || 0;
+
+                if (panelW > 0 && panelH > 0 && totalWidth > 0 && totalHeight > 0) {
+
+                    // Fit the FULL drawn viewport (including dimension labels) into the panel
+                    const drawnW = Math.max(bbox.width, 1);
+                    const drawnH = Math.max(bbox.height, 1);
+                    const fitScale = Math.min(panelW / drawnW, panelH / drawnH) * 0.98;
+
+
+                    const lastPx = Number(svg.dataset.lastEffectivePx) || effectivePx;
+
+                    if (isFinite(fitScale) && fitScale > 0 && isFinite(lastPx) && lastPx > 0) {
+                        const fittedPx = lastPx * fitScale;
+
+                        // Lock expanded mode to this fitted px and redraw once
+                        svg.dataset.lockedEffectivePx = String(fittedPx);
+                        delete svg.dataset.fitExpandedOnce;
+
+                        requestAnimationFrame(() => {
+                            if (typeof updateDrawing === "function") updateDrawing();
+                        });
+
+                        return; // stop now; next draw will be the fitted one
+                    }
+                }
+
+                // if anything was unstable, don't loop forever
+                delete svg.dataset.fitExpandedOnce;
+            }
+
+
             // ✅ Re-apply transform once more after sizing (safe; keeps view stable)
             if (typeof applyMobileTransform === "function") {
                 applyMobileTransform();
@@ -6416,7 +6465,6 @@ recommended height is 30&quot; off the floor.">?</button>
             // ✅ Always preserve view relative to the cabinet anchor when possible,
             // BUT if the panel size changed (iOS address bar show/hide), re-center
             // when the user hasn't intentionally moved the view.
-            // ALSO: allow a one-time "center on enter expanded"
             if (panel && hasPrevAnchor) {
 
                 // detect panel size changes (iOS chrome hide/show)
@@ -6440,14 +6488,13 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 const hasSelection = (selectedSectionIndex != null);
                 const isExpandedNow = document.body.classList.contains("drawing-expanded");
-                const wantsCenterOnExpand = (svg.dataset.centerOnNextExpanded === "1");
 
                 const firstVanity = runModel.objects.find(o => o.type === "vanity" && o.model);
 
                 requestAnimationFrame(() => {
 
-                    // ✅ One-time: when entering expanded, center the cabinet (no text/bbox influence)
-                    if (isExpandedNow && wantsCenterOnExpand && !userHasMovedView && !hasSelection && firstVanity) {
+                    // ✅ One-time: when expanded mode finishes fitting, center the cabinet
+                    if (isExpandedNow && svg.dataset.centerOnExpandedOnce === "1" && !userHasMovedView && !hasSelection && firstVanity) {
 
                         const cabW = (Number(firstVanity.model.widthIn) || 0) * effectivePx;
                         const cabH = (Number(firstVanity.model.heightIn) || 0) * effectivePx;
@@ -6458,9 +6505,10 @@ recommended height is 30&quot; off the floor.">?</button>
                         panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
                         panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
 
-                        delete svg.dataset.centerOnNextExpanded;
+                        delete svg.dataset.centerOnExpandedOnce;
                         return;
                     }
+
 
                     // If the viewport changed size AND the user hasn't moved the view,
                     // re-center on the cabinet so it doesn't "slide" sideways.
@@ -6484,6 +6532,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 return; // <-- stabilization handled; skip older grew/center logic
             }
+
 
 
             // ✅ If the SVG grew (buttons/labels), restore scroll so vanity doesn't shift
@@ -8727,37 +8776,19 @@ recommended height is 30&quot; off the floor.">?</button>
                     ? getActiveDrawingSvg()
                     : document.getElementById("vanityDrawing");
 
-                if (svg && on) {
-                    // ✅ Expanded mode should start as large as possible WITHOUT clipping labels.
-                    // We fit by height using the same gutter inches used in doActualRunDrawing():
-                    // TOP: (SINK_DIM_OFFSET_IN + 7) where SINK_DIM_OFFSET_IN=7  -> 14"
-                    // BOTTOM: 10"  => total vertical gutters ~24"
-                    const tallestIn = Number(svg.dataset.lastTallestHeightIn) || 0;
-
-                    const panel =
-                        svg.closest("#drawing-panel") ||
-                        svg.closest("#mobile-drawing-panel") ||
-                        svg.parentElement;
-
-                    const panelH = panel ? (panel.clientHeight || 0) : 0;
-
-                    const TOTAL_GUTTER_IN = 24;
-
-                    if (panelH > 0 && tallestIn > 0) {
-                        const fitPx = (panelH / (tallestIn + TOTAL_GUTTER_IN)) * 0.98; // small safety margin
-                        if (isFinite(fitPx) && fitPx > 0) {
-                            svg.dataset.lockedEffectivePx = String(fitPx);
-                        }
+                if (svg) {
+                    if (on) {
+                        // ✅ Expanded should auto-fit once (dims included) and center by default
+                        delete svg.dataset.lockedEffectivePx;     // let the first expanded draw measure real content
+                        svg.dataset.fitExpandedOnce = "1";        // trigger 2-pass fit inside doActualRunDrawing
+                        svg.dataset.centerOnExpandedOnce = "1";   // center after fit redraw
+                    } else {
+                        // leaving expanded → clear lock + one-shot flags
+                        if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+                        if (svg.dataset.fitExpandedOnce) delete svg.dataset.fitExpandedOnce;
+                        if (svg.dataset.centerOnExpandedOnce) delete svg.dataset.centerOnExpandedOnce;
                     }
 
-                    // ✅ Tell doActualRunDrawing to center ONCE after the expanded redraw
-                    svg.dataset.centerOnNextExpanded = "1";
-                }
-
-                if (svg && !on) {
-                    // leaving expanded → clear lock + center flag
-                    if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
-                    if (svg.dataset.centerOnNextExpanded) delete svg.dataset.centerOnNextExpanded;
                 }
 
                 document.body.classList.toggle("drawing-expanded", !!on);
