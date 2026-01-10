@@ -6248,7 +6248,11 @@ recommended height is 30&quot; off the floor.">?</button>
             const svg = getActiveDrawingSvg();
             if (!svg) return;
 
-            const panel = document.getElementById("drawing-panel");
+            const panel =
+                svg.closest("#drawing-panel") ||
+                svg.closest("#mobile-drawing-panel") ||
+                svg.parentElement;
+
 
             // ✅ Preserve scroll position so the vanity doesn't "shift" when viewBox grows
             const prevScrollLeft = panel ? panel.scrollLeft : 0;
