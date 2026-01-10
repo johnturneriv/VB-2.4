@@ -6318,6 +6318,8 @@ recommended height is 30&quot; off the floor.">?</button>
                     tallestHeightIn = Math.max(tallestHeightIn, obj.model.heightIn);
                 }
             });
+            svg.dataset.lastTallestHeightIn = String(tallestHeightIn || 0);
+
 
             // -------------------------------
             // 3) HEIGHT-FIRST RULE (scale clamp)
@@ -6414,6 +6416,7 @@ recommended height is 30&quot; off the floor.">?</button>
             // ✅ Always preserve view relative to the cabinet anchor when possible,
             // BUT if the panel size changed (iOS address bar show/hide), re-center
             // when the user hasn't intentionally moved the view.
+            // ALSO: allow a one-time "center on enter expanded"
             if (panel && hasPrevAnchor) {
 
                 // detect panel size changes (iOS chrome hide/show)
@@ -6437,10 +6440,27 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 const hasSelection = (selectedSectionIndex != null);
                 const isExpandedNow = document.body.classList.contains("drawing-expanded");
+                const wantsCenterOnExpand = (svg.dataset.centerOnNextExpanded === "1");
 
                 const firstVanity = runModel.objects.find(o => o.type === "vanity" && o.model);
 
                 requestAnimationFrame(() => {
+
+                    // ✅ One-time: when entering expanded, center the cabinet (no text/bbox influence)
+                    if (isExpandedNow && wantsCenterOnExpand && !userHasMovedView && !hasSelection && firstVanity) {
+
+                        const cabW = (Number(firstVanity.model.widthIn) || 0) * effectivePx;
+                        const cabH = (Number(firstVanity.model.heightIn) || 0) * effectivePx;
+
+                        const cabCenterX = cabinetAnchorX + cabW / 2;
+                        const cabCenterY = cabinetAnchorY + cabH / 2;
+
+                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
+                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+
+                        delete svg.dataset.centerOnNextExpanded;
+                        return;
+                    }
 
                     // If the viewport changed size AND the user hasn't moved the view,
                     // re-center on the cabinet so it doesn't "slide" sideways.
@@ -8707,26 +8727,49 @@ recommended height is 30&quot; off the floor.">?</button>
                     ? getActiveDrawingSvg()
                     : document.getElementById("vanityDrawing");
 
-                if (svg) {
-                    if (on) {
-                        // ✅ keep: lock expanded redraw to the last non-expanded effective px
-                        const lastPx = Number(svg.dataset.lastEffectivePx);
-                        if (isFinite(lastPx) && lastPx > 0) {
-                            svg.dataset.lockedEffectivePx = String(lastPx);
+                if (svg && on) {
+                    // ✅ Expanded mode should start as large as possible WITHOUT clipping labels.
+                    // We fit by height using the same gutter inches used in doActualRunDrawing():
+                    // TOP: (SINK_DIM_OFFSET_IN + 7) where SINK_DIM_OFFSET_IN=7  -> 14"
+                    // BOTTOM: 10"  => total vertical gutters ~24"
+                    const tallestIn = Number(svg.dataset.lastTallestHeightIn) || 0;
+
+                    const panel =
+                        svg.closest("#drawing-panel") ||
+                        svg.closest("#mobile-drawing-panel") ||
+                        svg.parentElement;
+
+                    const panelH = panel ? (panel.clientHeight || 0) : 0;
+
+                    const TOTAL_GUTTER_IN = 24;
+
+                    if (panelH > 0 && tallestIn > 0) {
+                        const fitPx = (panelH / (tallestIn + TOTAL_GUTTER_IN)) * 0.98; // small safety margin
+                        if (isFinite(fitPx) && fitPx > 0) {
+                            svg.dataset.lockedEffectivePx = String(fitPx);
                         }
-                    } else {
-                        // leaving expanded → clear lock
-                        if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
                     }
+
+                    // ✅ Tell doActualRunDrawing to center ONCE after the expanded redraw
+                    svg.dataset.centerOnNextExpanded = "1";
+                }
+
+                if (svg && !on) {
+                    // leaving expanded → clear lock + center flag
+                    if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+                    if (svg.dataset.centerOnNextExpanded) delete svg.dataset.centerOnNextExpanded;
                 }
 
                 document.body.classList.toggle("drawing-expanded", !!on);
 
-                // do NOT reset mobileScale/mobileTranslate
+                // Do NOT reset mobileScale/mobileTranslate.
+                // Force a redraw so the new lockedEffectivePx applies immediately.
                 requestAnimationFrame(() => {
+                    if (typeof updateDrawing === "function") updateDrawing();
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
                 });
             }
+
 
             function setMinimized(on) {
                 document.body.classList.toggle("drawing-minimized", !!on);
