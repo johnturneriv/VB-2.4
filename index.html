@@ -6407,14 +6407,60 @@ recommended height is 30&quot; off the floor.">?</button>
                 applyMobileTransform();
             }
 
-            // ✅ Always preserve view relative to the cabinet anchor when possible
+            // ✅ Always preserve view relative to the cabinet anchor when possible,
+            // BUT if the panel size changed (iOS address bar show/hide), re-center
+            // when the user hasn't intentionally moved the view.
             if (panel && hasPrevAnchor) {
+
+                // detect panel size changes (iOS chrome hide/show)
+                const curPanelW = panel.clientWidth || 0;
+                const curPanelH = panel.clientHeight || 0;
+
+                const prevPanelW = Number(svg.dataset.lastPanelClientW);
+                const prevPanelH = Number(svg.dataset.lastPanelClientH);
+
+                svg.dataset.lastPanelClientW = String(curPanelW);
+                svg.dataset.lastPanelClientH = String(curPanelH);
+
+                const panelResized =
+                    (isFinite(prevPanelW) && prevPanelW > 0 && curPanelW > 0 && curPanelW !== prevPanelW) ||
+                    (isFinite(prevPanelH) && prevPanelH > 0 && curPanelH > 0 && curPanelH !== prevPanelH);
+
+                const userHasMovedView =
+                    (typeof mobileScale === "number" && mobileScale !== 1) ||
+                    (typeof mobileTranslateX === "number" && mobileTranslateX !== 0) ||
+                    (typeof mobileTranslateY === "number" && mobileTranslateY !== 0);
+
+                const hasSelection = (selectedSectionIndex != null);
+                const isExpandedNow = document.body.classList.contains("drawing-expanded");
+
+                const firstVanity = runModel.objects.find(o => o.type === "vanity" && o.model);
+
                 requestAnimationFrame(() => {
+
+                    // If the viewport changed size AND the user hasn't moved the view,
+                    // re-center on the cabinet so it doesn't "slide" sideways.
+                    if (panelResized && !isExpandedNow && !userHasMovedView && !hasSelection && firstVanity) {
+
+                        const cabW = (Number(firstVanity.model.widthIn) || 0) * effectivePx;
+                        const cabH = (Number(firstVanity.model.heightIn) || 0) * effectivePx;
+
+                        const cabCenterX = cabinetAnchorX + cabW / 2;
+                        const cabCenterY = cabinetAnchorY + cabH / 2;
+
+                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
+                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+                        return;
+                    }
+
+                    // Otherwise preserve the user's view relative to the cabinet anchor
                     panel.scrollLeft = Math.max(0, cabinetAnchorX + prevOffsetX);
                     panel.scrollTop = Math.max(0, cabinetAnchorY + prevOffsetY);
                 });
-                return; // <-- we handled stabilization; skip the older grew/center logic
+
+                return; // <-- stabilization handled; skip older grew/center logic
             }
+
 
             // ✅ If the SVG grew (buttons/labels), restore scroll so vanity doesn't shift
             const grew =
