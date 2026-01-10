@@ -6509,6 +6509,22 @@ recommended height is 30&quot; off the floor.">?</button>
                         return;
                     }
 
+                    // ✅ One-time: after leaving expanded, re-center in normal mode
+                    if (!isExpandedNow && document.body.dataset.centerOnExitExpandedOnce === "1" && !userHasMovedView && !hasSelection && firstVanity) {
+
+                        const cabW = (Number(firstVanity.model.widthIn) || 0) * effectivePx;
+                        const cabH = (Number(firstVanity.model.heightIn) || 0) * effectivePx;
+
+                        const cabCenterX = cabinetAnchorX + cabW / 2;
+                        const cabCenterY = cabinetAnchorY + cabH / 2;
+
+                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
+                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+
+                        delete document.body.dataset.centerOnExitExpandedOnce;
+                        return;
+                    }
+
 
                     // If the viewport changed size AND the user hasn't moved the view,
                     // re-center on the cabinet so it doesn't "slide" sideways.
@@ -7022,6 +7038,7 @@ recommended height is 30&quot; off the floor.">?</button>
             const floorX2 = ox + cabW - legWpx;
 
             const ns = "http://www.w3.org/2000/svg";
+
 
             // ✅ READ geometry (never compute or mutate here)
             const geom = computeGeometry(model).vertical;
@@ -8787,6 +8804,9 @@ recommended height is 30&quot; off the floor.">?</button>
                         if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
                         if (svg.dataset.fitExpandedOnce) delete svg.dataset.fitExpandedOnce;
                         if (svg.dataset.centerOnExpandedOnce) delete svg.dataset.centerOnExpandedOnce;
+
+                        document.body.dataset.centerOnExitExpandedOnce = "1";
+
                     }
 
                 }
