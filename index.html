@@ -6265,6 +6265,19 @@ recommended height is 30&quot; off the floor.">?</button>
             const prevW = Number(svg.getAttribute("width")) || 0;
             const prevH = Number(svg.getAttribute("height")) || 0;
 
+            // =========================================================
+            // ✅ CABINET-ANCHOR SCROLL STABILITY
+            // Keep the view stable relative to the cabinet, NOT text/bbox
+            // =========================================================
+            const prevAnchorX = Number(svg.dataset.lastCabinetAnchorX);
+            const prevAnchorY = Number(svg.dataset.lastCabinetAnchorY);
+
+            const hasPrevAnchor = isFinite(prevAnchorX) && isFinite(prevAnchorY);
+
+            // Offset of the user's view relative to the cabinet anchor
+            const prevOffsetX = hasPrevAnchor ? (prevScrollLeft - prevAnchorX) : 0;
+            const prevOffsetY = hasPrevAnchor ? (prevScrollTop - prevAnchorY) : 0;
+
             clearSvg(svg);
 
             // =========================================================
@@ -6341,11 +6354,18 @@ recommended height is 30&quot; off the floor.">?</button>
             const LEFT_GUTTER_PX = Math.max(22 * effectivePx, 320);
             const RIGHT_GUTTER_PX = Math.max(22 * effectivePx, 320);
 
-
             const TOP_GUTTER_PX =
                 (SINK_DIM_OFFSET_IN + 7) * effectivePx;
 
             const BOTTOM_GUTTER_PX = 10 * effectivePx;
+
+            // ✅ This is the cabinet anchor (top-left of cabinet coordinate system)
+            const cabinetAnchorX = LEFT_GUTTER_PX;
+            const cabinetAnchorY = TOP_GUTTER_PX;
+
+            // Store anchor for the next redraw
+            svg.dataset.lastCabinetAnchorX = String(cabinetAnchorX);
+            svg.dataset.lastCabinetAnchorY = String(cabinetAnchorY);
 
             // -------------------------------
             // 5) DRAW OBJECTS (HORIZONTAL FLOW)
@@ -6387,6 +6407,15 @@ recommended height is 30&quot; off the floor.">?</button>
                 applyMobileTransform();
             }
 
+            // ✅ Always preserve view relative to the cabinet anchor when possible
+            if (panel && hasPrevAnchor) {
+                requestAnimationFrame(() => {
+                    panel.scrollLeft = Math.max(0, cabinetAnchorX + prevOffsetX);
+                    panel.scrollTop = Math.max(0, cabinetAnchorY + prevOffsetY);
+                });
+                return; // <-- we handled stabilization; skip the older grew/center logic
+            }
+
             // ✅ If the SVG grew (buttons/labels), restore scroll so vanity doesn't shift
             const grew =
                 (totalWidth > prevW && prevW > 0) ||
@@ -6424,6 +6453,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 });
             }
         }
+
 
         // DRAW PIPELINE
         // Order matters. Geometry is computed once per frame.
