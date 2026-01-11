@@ -6591,10 +6591,14 @@ recommended height is 30&quot; off the floor.">?</button>
                     (isFinite(prevPanelW) && prevPanelW > 0 && curPanelW > 0 && curPanelW !== prevPanelW) ||
                     (isFinite(prevPanelH) && prevPanelH > 0 && curPanelH > 0 && curPanelH !== prevPanelH);
 
+                // Treat tiny transform drift as "not moved" so viewport-resize recenters correctly
+                const MOVE_EPS_PX = 2;      // px drift tolerance
+                const SCALE_EPS = 0.001;    // scale drift tolerance
+
                 const userHasMovedView =
-                    (typeof mobileScale === "number" && mobileScale !== 1) ||
-                    (typeof mobileTranslateX === "number" && mobileTranslateX !== 0) ||
-                    (typeof mobileTranslateY === "number" && mobileTranslateY !== 0);
+                    (typeof mobileScale === "number" && Math.abs(mobileScale - 1) > SCALE_EPS) ||
+                    (typeof mobileTranslateX === "number" && Math.abs(mobileTranslateX) > MOVE_EPS_PX) ||
+                    (typeof mobileTranslateY === "number" && Math.abs(mobileTranslateY) > MOVE_EPS_PX);
 
                 const hasSelection = (selectedSectionIndex != null);
                 const isExpandedNow = document.body.classList.contains("drawing-expanded");
