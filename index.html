@@ -8731,12 +8731,17 @@ recommended height is 30&quot; off the floor.">?</button>
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
                 }
 
-                // Always redraw so the cabinet stays centered when vh changes on Chromium in-app browsers
+                // ✅ IMPORTANT:
+                // On Chromium in-app browsers, visualViewport.resize fires BEFORE layout settles.
+                // Wait 2 frames so panel.clientWidth/Height are final before doActualRunDrawing() centers.
                 requestAnimationFrame(() => {
-                    if (typeof updateDrawing === "function") updateDrawing();
+                    requestAnimationFrame(() => {
+                        if (typeof updateDrawing === "function") updateDrawing();
+                    });
                 });
             });
         }
+
 
 
 
@@ -9087,13 +9092,16 @@ recommended height is 30&quot; off the floor.">?</button>
                 // ✅ when expanding again, force a redraw if we skipped while minimized
                 if (!on) {
                     requestAnimationFrame(() => {
-                        const svg = getActiveDrawingSvg();
-                        if (svg && svg.dataset.needsRedrawOnExpand === "1") {
-                            delete svg.dataset.needsRedrawOnExpand;
-                            updateDrawing();
-                        }
+                        requestAnimationFrame(() => {
+                            const svg = getActiveDrawingSvg();
+                            if (svg && svg.dataset.needsRedrawOnExpand === "1") {
+                                delete svg.dataset.needsRedrawOnExpand;
+                                updateDrawing();
+                            }
+                        });
                     });
                 }
+
             }
 
 
