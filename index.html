@@ -982,7 +982,7 @@
                 width: 100%;
                 box-sizing: border-box;
 
-                height: calc(var(--vvh, 1vh) * 33);
+                height: calc(var(--vvh, 1vh) * 38);
                 min-height: 220px;
 
                 margin: 0;
@@ -8724,21 +8724,10 @@ recommended height is 30&quot; off the floor.">?</button>
         }
 
 
-        // Keep CSS viewport unit in sync with the *visible* viewport
-        // (fixes Chromium in-app URL/bottom bar hide/show)
-        function updateVisibleViewportUnit() {
-            const h = (window.visualViewport && window.visualViewport.height)
-                ? window.visualViewport.height
-                : window.innerHeight;
-
-            document.documentElement.style.setProperty("--vvh", `${h / 100}px`);
-        }
-
-        updateVisibleViewportUnit();
-
+        // Recenter drawing when the *visible* viewport changes (rotation / URL bar / bottom bars)
         if (window.visualViewport) {
             window.visualViewport.addEventListener("resize", () => {
-                updateVisibleViewportUnit();
+                if (!document.body.classList.contains("drawing-expanded")) return;
 
                 // Expanded: reset pinch/pan so full-screen stays stable
                 if (document.body.classList.contains("drawing-expanded")) {
@@ -8749,17 +8738,16 @@ recommended height is 30&quot; off the floor.">?</button>
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
                 }
 
-                // Redraw after layout settles
+                // ✅ IMPORTANT:
+                // On Chromium in-app browsers, visualViewport.resize fires BEFORE layout settles.
+                // Wait 2 frames so panel.clientWidth/Height are final before doActualRunDrawing() centers.
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                         if (typeof updateDrawing === "function") updateDrawing();
                     });
                 });
             });
-        } else {
-            window.addEventListener("resize", updateVisibleViewportUnit);
         }
-
 
 
 
