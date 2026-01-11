@@ -2786,7 +2786,12 @@ recommended height is 30&quot; off the floor.">?</button>
             // Styles
             const doorStyle = document.getElementById("doorStyle")?.value || "shaker";
             const drawerStyle = document.getElementById("drawerStyle")?.value || "slab";
-            const topDrawerHeightPreset = document.getElementById("topDrawerHeightPreset")?.value || "equal";
+            const topDrawerEl = document.getElementById("topDrawerHeightPreset");
+            const topDrawerIsEqual = topDrawerEl?.dataset?.mode === "equal";
+            const topDrawerHeightPreset = topDrawerIsEqual
+                ? "equal"
+                : (topDrawerEl?.value || "equal");
+
             const floating = document.getElementById("floating")?.value === "true";
 
             const visibleSideStyle = document.getElementById("visibleSideStyle")?.value || "shaker";
@@ -5237,8 +5242,11 @@ recommended height is 30&quot; off the floor.">?</button>
                     heightsPx: heights,
                     railCount: 0,
                     railHeightPx: 0,
-                    mode: "none"
+                    mode: "none",
+                    effectiveTopDrawerIn: (heights?.[0] ?? 0) / px,
+                    effectiveRowHeightsIn: (heights || []).map(h => h / px)
                 };
+
             }
 
             // -----------------------------------------
@@ -5252,8 +5260,11 @@ recommended height is 30&quot; off the floor.">?</button>
                 heightsPx: scaledHeights,
                 railCount: railsCount,
                 railHeightPx: railPx,
-                mode
+                mode,
+                effectiveTopDrawerIn: (scaledHeights?.[0] ?? 0) / px,
+                effectiveRowHeightsIn: (scaledHeights || []).map(h => h / px)
             };
+
         }
 
         function getDrawerCountForSection(model, sectionIndex, defaultCount) {
@@ -8759,12 +8770,34 @@ recommended height is 30&quot; off the floor.">?</button>
                     if (inputId === "toeKickHeight") return s(m?.toeKickHeightIn ?? 4);
                     if (inputId === "shelfSpaceIn") return s(m?.shelfSpaceIn ?? 8);
 
-                    // top drawer height: if blank (= equal), seed to a sane starting point for +/−
+                    // top drawer height: seed from the ACTUAL effective value used by drawing
                     if (inputId === "topDrawerHeightPreset") {
+                        const el = document.getElementById("topDrawerHeightPreset");
+                        const isEqualMode = el?.dataset?.mode === "equal";
+
+                        // If equal-mode, compute the same effective top drawer height the drawing uses.
+                        if (isEqualMode) {
+                            const { openTopY, openBottomY } = computeCaseOpeningVertical(m);
+                            const openingHpx = Math.max(openBottomY - openTopY, 0);
+
+                            const layout = computeDrawerLayout(
+                                openingHpx,
+                                m.scale.inchToPx,
+                                "equal",
+                                m.drawerRailsMode || "none",
+                                m.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
+                                m
+                            );
+
+                            return s(layout?.effectiveTopDrawerIn);
+                        }
+
+                        // fixed-mode
                         const raw = m?.topDrawerHeightPreset;
                         const n = parseFloat(raw);
                         return (isFinite(n) && n > 0) ? s(n) : s(6);
                     }
+
 
                     // ---- existing drawer-width seed logic (unchanged) ----
                     const secs = m?.sections || [];
@@ -8818,6 +8851,8 @@ recommended height is 30&quot; off the floor.">?</button>
                     const raw = String(input.value ?? "").trim();
                     if (raw === "") return;
 
+                    if (input.id === "topDrawerHeightPreset" && raw !== "") input.dataset.mode = "fixed";
+
                     const snapped = snapQ(raw);
                     if (snapped == null) return;
 
@@ -8835,18 +8870,30 @@ recommended height is 30&quot; off the floor.">?</button>
                         e.preventDefault();
                         e.stopPropagation();
 
-                        // ✅ NEW: "=" button support (blank => equal)
                         const action = btn.getAttribute("data-action");
                         if (action === "equal") {
-                            input.value = "";
+                            // equal-mode, but field should SHOW the effective value used by the drawing
+                            if (input.id === "topDrawerHeightPreset") {
+                                input.dataset.mode = "equal";
+
+                                const seed = seedFromModel("topDrawerHeightPreset");
+                                if (seed != null) input.value = String(seed);
+                            }
+
                             input.dispatchEvent(
                                 new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
                             );
                             return;
                         }
 
+
+
+
                         const dir = Number(btn.getAttribute("data-dir"));
                         if (!isFinite(dir) || dir === 0) return;
+
+                        if (input.id === "topDrawerHeightPreset") input.dataset.mode = "fixed";
+
 
                         const raw = String(input.value ?? "").trim();
                         let base = parseFloat(raw);
