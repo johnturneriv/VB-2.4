@@ -8721,6 +8721,7 @@ recommended height is 30&quot; off the floor.">?</button>
         // Recenter drawing when the *visible* viewport changes (rotation / URL bar / bottom bars)
         if (window.visualViewport) {
             window.visualViewport.addEventListener("resize", () => {
+                if (!document.body.classList.contains("drawing-expanded")) return;
 
                 // Expanded: reset pinch/pan so full-screen stays stable
                 if (document.body.classList.contains("drawing-expanded")) {
