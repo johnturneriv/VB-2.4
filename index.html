@@ -1243,11 +1243,11 @@
             top: 50%;
             transform: translateY(-50%);
             display: flex;
-            gap: 6px;
+            gap: 4px;
         }
 
         .stepper-input .stepper-btn {
-            width: 60px;
+            width: 45px;
             height: 30px;
             /* tap-friendly without changing input height */
             border-radius: 8px;
@@ -1333,7 +1333,7 @@
                     <div class="field-row">
                         <div class="field dimension-field">
                             <label for="width">width (in)</label>
-                            <input id="width" type="number" min="18" step="0.25" placeholder='18" min.'>
+                            <input id="width" type="number" min="18" max="180" step="0.25" placeholder='18" min.'>
                             <div id="widthError" class="field-error"></div>
                         </div>
 
@@ -1341,12 +1341,16 @@
                             <label for="height">
                                 height <strong>without</strong> countertop (in)
                             </label>
-                            <input id="height" type="number" min="6" step="0.25" placeholder='32–34.5" is standard'>
+                            <input id="height" type="number" min="6" max="108" step="0.25"
+                                placeholder='32–34.5" is standard'>
+
                         </div>
 
                         <div class="field dimension-field">
                             <label for="depth">depth (in)</label>
-                            <input id="depth" type="number" min="6" step="0.25" placeholder='21–22" is standard'>
+                            <input id="depth" type="number" min="14" max="30" step="0.25"
+                                placeholder='21–22" is standard'>
+
                         </div>
 
                         <div class="field sm">
@@ -1723,19 +1727,23 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     <!-- row 2: bottom detail + toe/open-below height -->
                     <div class="field-row">
-                        <div class="field">
-                            <label for="topDrawerHeightPreset">top drawer height</label>
-                            <select id="topDrawerHeightPreset">
-                                <option value="equal">equal to others</option>
-                                <option value="5">5"</option>
-                                <option value="5.5">5.5"</option>
-                                <option value="6">6"</option>
-                                <option value="6.5">6.5"</option>
-                                <option value="7">7"</option>
-                                <option value="7.5">7.5"</option>
-                                <option value="8">8"</option>
-                            </select>
+                        <div class="field md">
+                            <label for="topDrawerHeightPreset">top drawer height (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <!-- blank = "equal to others" -->
+                                <input id="topDrawerHeightPreset" type="number" min="4" max="10" step="0.25"
+                                    value="6" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-action="equal"
+                                        aria-label="equal">=</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
+
 
                         <div class="field sm" id="bottomDetailField">
                             <label>bottom detail</label>
@@ -1745,10 +1753,20 @@ recommended height is 30&quot; off the floor.">?</button>
                             </select>
                         </div>
 
-                        <div class="field sm" id="bottomHeightField">
+                        <div class="field md" id="bottomHeightField">
                             <label id="toeKickLabel">toe kick height (in)</label>
-                            <input type="number" id="toeKickHeight">
+                            <div class="stepper-input" data-step="0.25">
+                                <input type="number" id="toeKickHeight" min="2.5" max="24" step="0.25" value="4">
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
+
+
 
                         <!-- rails between drawers -->
                         <div class="field sm" id="drawerRailsModeField">
@@ -1782,10 +1800,20 @@ recommended height is 30&quot; off the floor.">?</button>
                     <div class="field-row">
 
                         <!-- SPACE ABOVE SHELF -->
-                        <div id="shelfSpaceField" class="field sm">
+                        <div id="shelfSpaceField" class="field md">
                             <label for="shelfSpaceIn">space above shelf (in)</label>
-                            <input id="shelfSpaceIn" type="number" step="0.25" min="6" max="12" value="8">
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="shelfSpaceIn" type="number" step="0.25" min="6" max="12" value="8">
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
                         </div>
+
+
 
                         <!-- SHELF THICKNESS (only appears when shelfBelow=yes) -->
                         <div class="field sm" id="shelfThicknessField" style="display: none;">
@@ -7583,27 +7611,62 @@ recommended height is 30&quot; off the floor.">?</button>
         }
 
         function enforceMinWidth() {
-            const widthInput = document.getElementById("width");
-            const widthError = document.getElementById("widthError");
-            if (!widthInput || !widthError) return;
+            // NOTE: Keeping the function name so the rest of your file doesn't need refactors.
+            // This now enforces width/height/depth bounds + the "numbers only" message.
 
-            let v = Number(widthInput.value);
+            const RULES = [
+                { id: "width", min: 18, max: 200, errorId: "widthError" },
+                { id: "height", min: 6, max: 96 },
+                { id: "depth", min: 12, max: 30 }
+            ];
 
-            // If empty or NaN, clear the error and bail (user hasn't really entered anything yet)
-            if (!v && v !== 0) {
-                widthError.textContent = "";
-                return;
-            }
+            for (const r of RULES) {
+                const el = document.getElementById(r.id);
+                if (!el) continue;
 
-            if (v < MIN_WIDTH_IN) {
-                // clamp to 18" and show an error
-                widthInput.value = MIN_WIDTH_IN;
-                widthError.textContent = `minimum width is ${MIN_WIDTH_IN}"`;
-            } else {
-                // valid → clear message
-                widthError.textContent = "";
+                const rawStr = String(el.value ?? "").trim();
+
+                // empty = allowed (user still typing)
+                if (rawStr === "") {
+                    el.setCustomValidity("");
+                    if (r.errorId) {
+                        const err = document.getElementById(r.errorId);
+                        if (err) err.textContent = "";
+                    }
+                    continue;
+                }
+
+                const n = Number(rawStr);
+
+                // "numbers only" message (covers symbols/letters / non-numeric)
+                if (!isFinite(n)) {
+                    const msg = "only use numbers, no symbols or letters";
+                    el.setCustomValidity(msg);
+                    if (typeof el.reportValidity === "function") el.reportValidity();
+
+                    if (r.errorId) {
+                        const err = document.getElementById(r.errorId);
+                        if (err) err.textContent = msg;
+                    }
+                    continue;
+                }
+
+                // clamp to min/max
+                let v = n;
+                if (v < r.min) v = r.min;
+                if (v > r.max) v = r.max;
+
+                el.value = String(v);
+
+                // clear errors
+                el.setCustomValidity("");
+                if (r.errorId) {
+                    const err = document.getElementById(r.errorId);
+                    if (err) err.textContent = "";
+                }
             }
         }
+
 
         function applyDoorDrawerPreset(preset) {
             const doorSel = document.getElementById("doorStyle");
@@ -8304,10 +8367,11 @@ recommended height is 30&quot; off the floor.">?</button>
                     if (id === "doorDrawerPreset") {
                         applyDoorDrawerPreset(evt.target.value);
                     }
-                    // only enforce the 18" minimum *after* they're done typing
-                    if (id === "width" && evt.type === "change") {
+                    // enforce bounds + "numbers only" message after they're done typing
+                    if ((id === "width" || id === "height" || id === "depth") && evt.type === "change") {
                         enforceMinWidth();
                     }
+
 
                     updateDrawing();
                 };
@@ -8653,7 +8717,6 @@ recommended height is 30&quot; off the floor.">?</button>
             });
         }
 
-
         function setupQuarterInchSteppers() {
             const wraps = Array.from(document.querySelectorAll(".stepper-input"));
             if (!wraps.length) return;
@@ -8681,11 +8744,29 @@ recommended height is 30&quot; off the floor.">?</button>
                 if (id === "drawerWidthTwoSection") { drawerOverrideFlags.twoSection = true; lastDrawerEdited = "twoSection"; }
             }
 
-            // Seed from current model (only if field is blank)
+            // Seed from current model (only if field is blank OR non-numeric)
             function seedFromModel(inputId) {
                 try {
                     if (typeof computeModel !== "function") return null;
                     const m = computeModel();
+
+                    const s = (v) => {
+                        const q = snapQ(v);
+                        return (q != null && q > 0) ? q : null;
+                    };
+
+                    // ✅ NEW: non-drawer steppers
+                    if (inputId === "toeKickHeight") return s(m?.toeKickHeightIn ?? 4);
+                    if (inputId === "shelfSpaceIn") return s(m?.shelfSpaceIn ?? 8);
+
+                    // top drawer height: if blank (= equal), seed to a sane starting point for +/−
+                    if (inputId === "topDrawerHeightPreset") {
+                        const raw = m?.topDrawerHeightPreset;
+                        const n = parseFloat(raw);
+                        return (isFinite(n) && n > 0) ? s(n) : s(6);
+                    }
+
+                    // ---- existing drawer-width seed logic (unchanged) ----
                     const secs = m?.sections || [];
                     const n = secs.length;
                     if (!n) return null;
@@ -8695,11 +8776,6 @@ recommended height is 30&quot; off the floor.">?</button>
                         .filter(d => d.sec?.role === "drawer");
 
                     if (!drawers.length) return null;
-
-                    const s = (v) => {
-                        const q = snapQ(v);
-                        return (q != null && q > 0) ? q : null;
-                    };
 
                     if (inputId === "drawerWidthTwoSection" && n === 2 && drawers.length === 1) {
                         return s(drawers[0].sec.widthIn);
@@ -8759,6 +8835,16 @@ recommended height is 30&quot; off the floor.">?</button>
                         e.preventDefault();
                         e.stopPropagation();
 
+                        // ✅ NEW: "=" button support (blank => equal)
+                        const action = btn.getAttribute("data-action");
+                        if (action === "equal") {
+                            input.value = "";
+                            input.dispatchEvent(
+                                new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
+                            );
+                            return;
+                        }
+
                         const dir = Number(btn.getAttribute("data-dir"));
                         if (!isFinite(dir) || dir === 0) return;
 
@@ -8785,6 +8871,7 @@ recommended height is 30&quot; off the floor.">?</button>
                 });
             });
         }
+
 
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
