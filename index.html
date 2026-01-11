@@ -442,6 +442,17 @@
             font-weight: 600;
         }
 
+        #sidebar .nav-item.locked {
+            opacity: 0.35;
+            pointer-events: none;
+            cursor: default;
+        }
+
+        #sidebar .nav-item.locked:hover {
+            background: transparent;
+        }
+
+
         /* Main page area */
         #page-container {
             margin-left: 180px;
@@ -1333,7 +1344,7 @@
                     <div class="field-row">
                         <div class="field dimension-field">
                             <label for="width">width (in)</label>
-                            <input id="width" type="number" min="18" max="180" step="0.25" placeholder='18" min.'>
+                            <input id="width" type="number" min="18" max="200" step="0.25" placeholder='18" min.'>
                             <div id="widthError" class="field-error"></div>
                         </div>
 
@@ -1341,8 +1352,9 @@
                             <label for="height">
                                 height <strong>without</strong> countertop (in)
                             </label>
-                            <input id="height" type="number" min="6" max="108" step="0.25"
+                            <input id="height" type="number" min="14" max="108" step="0.25"
                                 placeholder='32–34.5" is standard'>
+                            <div id="heightError" class="field-error"></div>
 
                         </div>
 
@@ -1350,6 +1362,7 @@
                             <label for="depth">depth (in)</label>
                             <input id="depth" type="number" min="14" max="30" step="0.25"
                                 placeholder='21–22" is standard'>
+                            <div id="depthError" class="field-error"></div>
 
                         </div>
 
@@ -2172,6 +2185,32 @@ recommended height is 30&quot; off the floor.">?</button>
         const sidebarItems = document.querySelectorAll("#sidebar .nav-item");
         const pages = document.querySelectorAll(".page");
 
+        function isWidthReady() {
+            const el = document.getElementById("width");
+            const raw = String(el?.value ?? "").trim();
+            if (raw === "") return false;
+
+            const n = Number(raw);
+            return isFinite(n) && n >= 18 && n <= 200;
+        }
+
+        function updateSidebarWidthLock() {
+            const ready = isWidthReady();
+
+            sidebarItems.forEach(item => {
+                const pid = item.getAttribute("data-page") || "";
+                const num = parseInt(pid.replace("page", ""), 10);
+
+                // lock pages 3+
+                if (isFinite(num) && num >= 3) {
+                    item.classList.toggle("locked", !ready);
+                } else {
+                    item.classList.remove("locked");
+                }
+            });
+        }
+
+
         function setDrawingPanelVisibility(pageId) {
             const drawingPanel = document.getElementById("drawing-panel");
             const mobileBar = document.getElementById("mobile-drawing-bar");
@@ -2189,15 +2228,18 @@ recommended height is 30&quot; off the floor.">?</button>
             }
         }
 
-
-
-
         sidebarItems.forEach(item => {
             item.addEventListener("click", () => {
+                if (item.classList.contains("locked")) return;
+
                 const pageId = item.getAttribute("data-page");
                 goToPage(pageId);
             });
         });
+
+        // run once on load so steps are grayed out if width is empty
+        updateSidebarWidthLock();
+
 
 
 
@@ -2209,6 +2251,13 @@ recommended height is 30&quot; off the floor.">?</button>
         function goToPage(pageId) {
             if (!pageId) return;
 
+            // ✅ gate: cannot go to page3+ until width is valid
+            const targetNum = parseInt(String(pageId).replace("page", ""), 10);
+            if (isFinite(targetNum) && targetNum >= 3 && !isWidthReady()) {
+                pageId = "page2";
+            }
+
+
             // normalize pages into a real array (ONCE)
             const pagesArr = Array.from(pages);
 
@@ -2219,6 +2268,10 @@ recommended height is 30&quot; off the floor.">?</button>
                     i.getAttribute("data-page") === pageId
                 );
             });
+
+            // keep lock state in sync as they navigate
+            updateSidebarWidthLock();
+
 
             // activate correct page (DESKTOP SOURCE OF TRUTH)
             pagesArr.forEach(p => p.classList.remove("active"));
@@ -2461,6 +2514,16 @@ recommended height is 30&quot; off the floor.">?</button>
                 const activePage = document.querySelector(".page.active");
                 if (!activePage) return;
 
+                // ✅ page2 gating rules:
+                // - width required
+                // - height/depth optional if blank
+                // - any non-numeric OR out-of-range blocks Next
+                if (activePage.id === "page2") {
+                    const ok = enforceMinWidth({ requireWidth: true, showRangePopup: false });
+                    updateSidebarWidthLock();
+                    if (!ok) return;
+                }
+
                 const localNext = activePage.querySelector(".nav-buttons .next");
                 if (!localNext || localNext.disabled) return;
 
@@ -2469,6 +2532,8 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 goToPage(nextPage);
             });
+
+
         })();
         setupMobileDrawingBarHandlers();
 
@@ -7621,61 +7686,78 @@ recommended height is 30&quot; off the floor.">?</button>
             }
         }
 
-        function enforceMinWidth() {
-            // NOTE: Keeping the function name so the rest of your file doesn't need refactors.
-            // This now enforces width/height/depth bounds + the "numbers only" message.
+        function enforceMinWidth(opts = {}) {
+            // Enforce W/H/D rules WITHOUT silently clamping.
+            // - width is required only when opts.requireWidth === true
+            // - blank height/depth are allowed (defaults used)
+            // - non-numeric => "only use numbers..."
+            // - out of range => "min/max ___ is ___"
+            // - popups ONLY for range issues when opts.showRangePopup === true
 
-            const RULES = [
-                { id: "width", min: 18, max: 200, errorId: "widthError" },
-                { id: "height", min: 6, max: 96 },
-                { id: "depth", min: 12, max: 30 }
+            const requireWidth = !!opts.requireWidth;
+            const showRangePopup = !!opts.showRangePopup;
+
+            const rules = [
+                { id: "width", min: 18, max: 200, required: requireWidth, errId: "widthError", label: "width" },
+                { id: "height", min: 14, max: 108, required: false, errId: "heightError", label: "height" },
+                { id: "depth", min: 12, max: 30, required: false, errId: "depthError", label: "depth" }
             ];
 
-            for (const r of RULES) {
+            let allOk = true;
+
+            function setErr(el, errId, msg, doPopup) {
+                if (el) el.setCustomValidity(msg || "");
+                const box = errId ? document.getElementById(errId) : null;
+                if (box) box.textContent = msg || "";
+            }
+
+            for (const r of rules) {
                 const el = document.getElementById(r.id);
                 if (!el) continue;
 
-                const rawStr = String(el.value ?? "").trim();
+                const raw = String(el.value ?? "").trim();
 
-                // empty = allowed (user still typing)
-                if (rawStr === "") {
-                    el.setCustomValidity("");
-                    if (r.errorId) {
-                        const err = document.getElementById(r.errorId);
-                        if (err) err.textContent = "";
+                // blank
+                if (raw === "") {
+                    if (r.required) {
+                        allOk = false;
+                        setErr(el, r.errId, "width is required", false); // ✅ no popup for missing width
+                    } else {
+                        setErr(el, r.errId, "", false); // height/depth blank OK
                     }
                     continue;
                 }
 
-                const n = Number(rawStr);
-
-                // "numbers only" message (covers symbols/letters / non-numeric)
+                // non-numeric
+                const n = Number(raw);
                 if (!isFinite(n)) {
-                    const msg = "only use numbers, no symbols or letters";
-                    el.setCustomValidity(msg);
-                    if (typeof el.reportValidity === "function") el.reportValidity();
-
-                    if (r.errorId) {
-                        const err = document.getElementById(r.errorId);
-                        if (err) err.textContent = msg;
-                    }
+                    allOk = false;
+                    setErr(el, r.errId, "only use numbers, no symbols or letters", false);
                     continue;
                 }
 
-                // clamp to min/max
-                let v = n;
-                if (v < r.min) v = r.min;
-                if (v > r.max) v = r.max;
+                // snap for checking (but DO NOT clamp)
+                const snapped = Math.round(n * 4) / 4;
 
-                el.value = String(v);
+                // range
+                if (snapped < r.min || snapped > r.max) {
+                    allOk = false;
 
-                // clear errors
-                el.setCustomValidity("");
-                if (r.errorId) {
-                    const err = document.getElementById(r.errorId);
-                    if (err) err.textContent = "";
+                    const msg = (snapped < r.min)
+                        ? `min ${r.label} is ${r.min}"`
+                        : `max ${r.label} is ${r.max}"`;
+
+                    // ✅ popup only for range issues (after typing is finished)
+                    setErr(el, r.errId, msg, showRangePopup);
+                    continue;
                 }
+
+                // ok
+                el.value = String(snapped);
+                setErr(el, r.errId, "", false);
             }
+
+            return allOk;
         }
 
 
@@ -8378,10 +8460,30 @@ recommended height is 30&quot; off the floor.">?</button>
                     if (id === "doorDrawerPreset") {
                         applyDoorDrawerPreset(evt.target.value);
                     }
-                    // enforce bounds + "numbers only" message after they're done typing
-                    if ((id === "width" || id === "height" || id === "depth") && evt.type === "change") {
-                        enforceMinWidth();
+                    // validate after they're done typing:
+                    // - show popup ONLY for out-of-range
+                    // - show red errors for range + non-numeric
+                    if ((id === "width" || id === "height" || id === "depth") && evt.type === "blur") {
+                        enforceMinWidth({ requireWidth: false });
+                        updateSidebarWidthLock();
                     }
+
+
+
+                    // while typing width, keep sidebar lock state live
+                    if (id === "width" && evt.type === "input") {
+                        updateSidebarWidthLock();
+                    }
+
+                    // ✅ for W/H/D: do NOT validate (or show errors) while typing.
+                    // Only validate on blur. Also avoid redraw while typing so "3" doesn't clamp.
+                    if (id === "width" || id === "height" || id === "depth") {
+                        if (evt.type !== "blur") return;
+
+                        const ok = enforceMinWidth({ requireWidth: false });
+                        if (!ok) return;
+                    }
+
 
 
                     updateDrawing();
@@ -8424,6 +8526,12 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 // Keep your main handler exactly as-is, but now drawer widths redraw on "change"
                 el.addEventListener(useChangeOnly ? "change" : "input", handler);
+
+                // ✅ NEW: fire validation when user clicks off width/height/depth
+                if (id === "width" || id === "height" || id === "depth") {
+                    el.addEventListener("blur", handler);
+                }
+
 
 
             });
