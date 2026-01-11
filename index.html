@@ -8718,18 +8718,26 @@ recommended height is 30&quot; off the floor.">?</button>
         }
 
 
-        // Recenter expanded drawing when the *visible* viewport changes (rotation / URL bar)
+        // Recenter drawing when the *visible* viewport changes (rotation / URL bar / bottom bars)
         if (window.visualViewport) {
             window.visualViewport.addEventListener("resize", () => {
-                if (!document.body.classList.contains("drawing-expanded")) return;
 
-                mobileScale = 1;
-                mobileTranslateX = 0;
-                mobileTranslateY = 0;
+                // Expanded: reset pinch/pan so full-screen stays stable
+                if (document.body.classList.contains("drawing-expanded")) {
+                    mobileScale = 1;
+                    mobileTranslateX = 0;
+                    mobileTranslateY = 0;
 
-                if (typeof applyMobileTransform === "function") applyMobileTransform();
+                    if (typeof applyMobileTransform === "function") applyMobileTransform();
+                }
+
+                // Always redraw so the cabinet stays centered when vh changes on Chromium in-app browsers
+                requestAnimationFrame(() => {
+                    if (typeof updateDrawing === "function") updateDrawing();
+                });
             });
         }
+
 
 
         function getTouchDistance(t1, t2) {
