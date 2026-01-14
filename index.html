@@ -6608,30 +6608,35 @@ recommended height is 30&quot; off the floor.">?</button>
                         isFinite(prevAutoL) && isFinite(prevAutoT) &&
                         (Math.abs(prevScrollLeft - prevAutoL) > MOVE_EPS_PX || Math.abs(prevScrollTop - prevAutoT) > MOVE_EPS_PX);
 
-                    const allowAutoCenter = !userHasMovedView && !hasSelection && !userHasScrolledPanel;
+                    const allowAutoCenter = !userHasMovedView && !hasSelection && (!userHasScrolledPanel || panelResized);
+
 
                     // ✅ Standard (bottom pinned) panel: center once by default,
                     // even if a previous anchor exists (mobile culprit).
-                    const needsStandardDefaultCenter = (svg.dataset.didStandardAutoCenter !== "1");
+                    const needsStandardDefaultCenter = (svg.dataset.didStandardAutoCenter !== "1" || panelResized);
 
-                    if (!isExpandedNow && allowAutoCenter && firstVanity && needsStandardDefaultCenter) {
+
+                    // ✅ Standard panel: keep cabinet centered by default
+                    // until user pinch-pans/zooms or selects a section.
+                    if (!isExpandedNow && allowAutoCenter && firstVanity) {
                         scrollDefaultToCabinet();
                         svg.dataset.didStandardAutoCenter = "1";
                         return;
                     }
 
+
                     function scrollDefaultToCabinet() {
                         if (!panel || !firstVanity) return;
 
-                        const cabW_px = (Number(firstVanity.model.widthIn) || 0) * effectivePx * VIEW_ZOOM;
-                        const cabH_px = (Number(firstVanity.model.heightIn) || 0) * effectivePx * VIEW_ZOOM;
+                        const cabW_px = (Number(firstVanity.model.widthIn) || 0) * effectivePx
+                        const cabH_px = (Number(firstVanity.model.heightIn) || 0) * effectivePx
 
                         const cabCenterX = cabinetAnchorX_px + cabW_px / 2;
                         const cabCenterY = cabinetAnchorY_px + cabH_px / 2;
 
                         // ✅ CHANGE #2: if it can't fit, align the *leftmost drawn element* (bbox.x) with safe pad
                         const cabinetTooWideForPanel = cabW_px > (panel.clientWidth - 2 * SAFE_PAD_PX);
-                        const leftMostDrawnPx = (bbox?.x || 0) * VIEW_ZOOM;
+                        const leftMostDrawnPx = (bbox?.x || 0)
 
                         panel.scrollLeft = cabinetTooWideForPanel
                             ? Math.max(0, leftMostDrawnPx - SAFE_PAD_PX)
