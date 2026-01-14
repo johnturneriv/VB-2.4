@@ -6503,9 +6503,11 @@ recommended height is 30&quot; off the floor.">?</button>
             // ---------------------------------------------------------
             const SINK_DIM_OFFSET_IN = 8; // existing assumption used elsewhere
 
-            const SIDE_GUTTER_PX = isExpanded
-                ? Math.max(6 * effectivePx, 40)
-                : Math.max(22 * effectivePx, 320);
+            // ✅ CHANGE #1: treat mobile panel like expanded for gutters (no 320px push)
+            const isMobilePanel = !!(panel && panel.id === "mobile-drawing-panel");
+
+            const SIDE_GUTTER_PX = Math.max(6 * effectivePx, 90);
+
 
             const LEFT_GUTTER_PX = SIDE_GUTTER_PX;
             const RIGHT_GUTTER_PX = SIDE_GUTTER_PX;
@@ -6618,7 +6620,6 @@ recommended height is 30&quot; off the floor.">?</button>
                         return;
                     }
 
-
                     function scrollDefaultToCabinet() {
                         if (!panel || !firstVanity) return;
 
@@ -6628,11 +6629,12 @@ recommended height is 30&quot; off the floor.">?</button>
                         const cabCenterX = cabinetAnchorX_px + cabW_px / 2;
                         const cabCenterY = cabinetAnchorY_px + cabH_px / 2;
 
-                        // If the cabinet itself can't fit, keep the leftmost dims visible.
+                        // ✅ CHANGE #2: if it can't fit, align the *leftmost drawn element* (bbox.x) with safe pad
                         const cabinetTooWideForPanel = cabW_px > (panel.clientWidth - 2 * SAFE_PAD_PX);
+                        const leftMostDrawnPx = (bbox?.x || 0) * VIEW_ZOOM;
 
                         panel.scrollLeft = cabinetTooWideForPanel
-                            ? 0
+                            ? Math.max(0, leftMostDrawnPx - SAFE_PAD_PX)
                             : Math.max(0, cabCenterX - (panel.clientWidth / 2));
 
                         panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
@@ -6640,7 +6642,6 @@ recommended height is 30&quot; off the floor.">?</button>
                         // ✅ record what *we* set, so we can detect real user scroll later
                         svg.dataset.lastAutoScrollLeft = String(panel.scrollLeft);
                         svg.dataset.lastAutoScrollTop = String(panel.scrollTop);
-
                     }
 
                     // ✅ FIRST DRAW (no previous anchor): default-center unless the cabinet can't fully fit
@@ -8679,26 +8680,20 @@ recommended height is 30&quot; off the floor.">?</button>
         let lastTouchMid = null;
 
         function applyMobileTransform() {
-            const svg = getActiveDrawingSvg ? getActiveDrawingSvg() : document.getElementById("vanityDrawing");
+            const svg = (typeof getActiveDrawingSvg === "function")
+                ? getActiveDrawingSvg()
+                : document.getElementById("vanityDrawing");
             if (!svg) return;
-
-            const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
             // Prefer stable wrapper if present
             const g = svg.querySelector("#mobileViewport");
             const target = g || svg;
 
-            if (!isMobile) {
-                target.style.transform = "";
-                target.style.transformOrigin = "";
-                return;
-            }
-
-            // IMPORTANT: stable origin so midpoint math stays correct
-            target.style.transformOrigin = "0 0";
-            target.style.transform =
-                `translate(${mobileTranslateX}px, ${mobileTranslateY}px) scale(${mobileScale})`;
+            // ✅ RESET: no mobile pinch/pan transform at all
+            target.style.transform = "";
+            target.style.transformOrigin = "";
         }
+
 
 
         // Recenter drawing when the *visible* viewport changes (rotation / URL bar / bottom bars)
@@ -8742,96 +8737,19 @@ recommended height is 30&quot; off the floor.">?</button>
             };
         }
 
-
         function setupMobileDrawingGestures() {
-            const svg = document.getElementById("vanityDrawing");
-            if (!svg) return;
+            // ✅ RESET MODE: intentionally remove all touch gesture wiring.
+            // We want to debug centering with ZERO zoom/pan influence.
 
-            let lastOneFinger = null;
+            // Reset any previous transform state vars (these are in outer scope)
+            mobileScale = 1;
+            mobileTranslateX = 0;
+            mobileTranslateY = 0;
 
-            svg.addEventListener("touchstart", (e) => {
-                if (e.touches.length === 1) {
-                    lastOneFinger = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-
-                if (e.touches.length === 2) {
-                    lastTouchDist = getTouchDistance(e.touches[0], e.touches[1]);
-                    lastTouchMid = getTouchMidpoint(e.touches[0], e.touches[1]);
-                }
-            }, { passive: false });
-
-            svg.addEventListener("touchmove", (e) => {
-                // 1-finger pan
-                if (e.touches.length === 1 && lastOneFinger) {
-                    e.preventDefault();
-
-                    const x = e.touches[0].clientX;
-                    const y = e.touches[0].clientY;
-
-                    mobileTranslateX += (x - lastOneFinger.x);
-                    mobileTranslateY += (y - lastOneFinger.y);
-
-                    lastOneFinger = { x, y };
-                    applyMobileTransform();
-                    return;
-                }
-
-                // 2-finger pinch zoom anchored to the midpoint (Photos-style)
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-
-                    const rect = svg.getBoundingClientRect();
-                    if (!rect.width || !rect.height) return;
-
-                    const newDist = getTouchDistance(e.touches[0], e.touches[1]);
-                    const newMid = getTouchMidpoint(e.touches[0], e.touches[1]);
-
-                    if (!lastTouchDist || !lastTouchMid) {
-                        lastTouchDist = newDist;
-                        lastTouchMid = newMid;
-                        return;
-                    }
-
-                    // Midpoints in element-local pixels
-                    const lastMidLocal = {
-                        x: lastTouchMid.x - rect.left,
-                        y: lastTouchMid.y - rect.top
-                    };
-                    const newMidLocal = {
-                        x: newMid.x - rect.left,
-                        y: newMid.y - rect.top
-                    };
-
-                    // Content point under the *last* midpoint (in transformed space)
-                    const uX = (lastMidLocal.x - mobileTranslateX) / mobileScale;
-                    const uY = (lastMidLocal.y - mobileTranslateY) / mobileScale;
-
-                    // New scale (clamped)
-                    const scaleDelta = newDist / lastTouchDist;
-                    const nextScale = Math.max(0.5, Math.min(3, mobileScale * scaleDelta));
-
-                    // Keep same content point under the *new* midpoint
-                    mobileTranslateX = newMidLocal.x - (uX * nextScale);
-                    mobileTranslateY = newMidLocal.y - (uY * nextScale);
-                    mobileScale = nextScale;
-
-                    lastTouchDist = newDist;
-                    lastTouchMid = newMid;
-
-                    applyMobileTransform();
-                }
-            }, { passive: false });
-
-            svg.addEventListener("touchend", (e) => {
-                if (!e.touches || e.touches.length === 0) {
-                    lastOneFinger = null;
-                }
-                if (!e.touches || e.touches.length < 2) {
-                    lastTouchDist = null;
-                    lastTouchMid = null;
-                }
-            });
+            // Force-clear any lingering CSS transform on the viewport group/SVG
+            if (typeof applyMobileTransform === "function") applyMobileTransform();
         }
+
 
         function setupQuarterInchSteppers() {
             const wraps = Array.from(document.querySelectorAll(".stepper-input"));
@@ -9034,32 +8952,25 @@ recommended height is 30&quot; off the floor.">?</button>
             if (!expandBtn || !toggleBtn || !priceBtn) return;
 
             function setExpanded(on) {
+                // ✅ RESET MODE: expanded/full-screen is disabled for centering debug.
+                // Always force OFF.
+
                 const svg = (typeof getActiveDrawingSvg === "function")
                     ? getActiveDrawingSvg()
                     : document.getElementById("vanityDrawing");
 
                 if (svg) {
-                    if (on) {
-                        // ✅ Expanded should auto-fit once (dims included) and center by default
-                        delete svg.dataset.lockedEffectivePx;     // let the first expanded draw measure real content
-                        svg.dataset.fitExpandedOnce = "1";        // trigger 2-pass fit inside doActualRunDrawing
-                        svg.dataset.centerOnExpandedOnce = "1";   // center after fit redraw
-                    } else {
-                        // leaving expanded → clear lock + one-shot flags
-                        if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
-                        if (svg.dataset.fitExpandedOnce) delete svg.dataset.fitExpandedOnce;
-                        if (svg.dataset.centerOnExpandedOnce) delete svg.dataset.centerOnExpandedOnce;
-
-                        document.body.dataset.centerOnExitExpandedOnce = "1";
-
-                    }
-
+                    // clear any expanded-fit one-shot flags
+                    if (svg.dataset.lockedEffectivePx) delete svg.dataset.lockedEffectivePx;
+                    if (svg.dataset.fitExpandedOnce) delete svg.dataset.fitExpandedOnce;
+                    if (svg.dataset.centerOnExpandedOnce) delete svg.dataset.centerOnExpandedOnce;
                 }
 
-                document.body.classList.toggle("drawing-expanded", !!on);
+                document.body.classList.remove("drawing-expanded");
+                if (document.body.dataset.centerOnExitExpandedOnce) {
+                    delete document.body.dataset.centerOnExitExpandedOnce;
+                }
 
-                // Do NOT reset mobileScale/mobileTranslate.
-                // Force a redraw so the new lockedEffectivePx applies immediately.
                 requestAnimationFrame(() => {
                     if (typeof updateDrawing === "function") updateDrawing();
                     if (typeof applyMobileTransform === "function") applyMobileTransform();
