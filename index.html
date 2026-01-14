@@ -1757,6 +1757,31 @@ recommended height is 30&quot; off the floor.">?</button>
                             </div>
                         </div>
 
+                        <!-- faux drawer under sink -->
+                        <div class="field md">
+                            <label for="fauxDrawerUnderSink">faux drawer under sink</label>
+                            <select id="fauxDrawerUnderSink">
+                                <option value="no" selected>no</option>
+                                <option value="yes">yes</option>
+                            </select>
+                        </div>
+
+                        <div class="field md" id="fauxDrawerHeightField" style="display:none;">
+                            <label for="fauxDrawerHeightPreset">faux drawer height (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="fauxDrawerHeightPreset" type="number" min="4" max="10" step="0.25"
+                                    value="6" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-action="equal"
+                                        aria-label="equal">=</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
+                        </div>
+
 
                         <div class="field sm" id="bottomDetailField">
                             <label>bottom detail</label>
@@ -2857,6 +2882,16 @@ recommended height is 30&quot; off the floor.">?</button>
                 ? "equal"
                 : (topDrawerEl?.value || "equal");
 
+            // ✅ Faux drawer under sink (UI -> model only)
+            const fauxDrawerUnderSink =
+                (document.getElementById("fauxDrawerUnderSink")?.value || "no") === "yes";
+
+            const fauxDrawerEl = document.getElementById("fauxDrawerHeightPreset");
+            const fauxDrawerIsEqual = fauxDrawerEl?.dataset?.mode === "equal";
+            const fauxDrawerHeightPreset = fauxDrawerIsEqual
+                ? "equal"
+                : (fauxDrawerEl?.value || "6");
+
             const floating = document.getElementById("floating")?.value === "true";
 
             const visibleSideStyle = document.getElementById("visibleSideStyle")?.value || "shaker";
@@ -3047,6 +3082,11 @@ recommended height is 30&quot; off the floor.">?</button>
                 doorStyle,
                 drawerStyle,
                 topDrawerHeightPreset,
+
+                // ✅ Faux drawer fields
+                fauxDrawerUnderSink,
+                fauxDrawerHeightPreset,
+
                 drawerStackConfig,
 
                 drawerRailsMode,
@@ -8651,30 +8691,18 @@ recommended height is 30&quot; off the floor.">?</button>
             const wraps = Array.from(document.querySelectorAll(".stepper-input"));
             if (!wraps.length) return;
 
-            const snapQ = (n) => {
-                const x = Number(n);
-                if (!isFinite(x)) return null;
-                return Math.round(x * 4) / 4;
-            };
+            function snapQ(n) {
+                const q = Math.round(n * 4) / 4;
+                return (isFinite(q) ? q : null);
+            }
 
             function isDrawerWidth(id) {
-                return (
-                    id === "drawerWidthSingle" ||
+                return id === "drawerWidthSingle" ||
                     id === "drawerWidthOuter" ||
                     id === "drawerWidthCenter" ||
-                    id === "drawerWidthTwoSection"
-                );
+                    id === "drawerWidthTwoSection";
             }
 
-            function markDrawerOverride(id) {
-                if (typeof drawerOverrideFlags === "undefined") return;
-                if (id === "drawerWidthSingle") { drawerOverrideFlags.single = true; lastDrawerEdited = "single"; }
-                if (id === "drawerWidthOuter") { drawerOverrideFlags.outer = true; lastDrawerEdited = "outer"; }
-                if (id === "drawerWidthCenter") { drawerOverrideFlags.center = true; lastDrawerEdited = "center"; }
-                if (id === "drawerWidthTwoSection") { drawerOverrideFlags.twoSection = true; lastDrawerEdited = "twoSection"; }
-            }
-
-            // Seed from current model (only if field is blank)
             function seedFromModel(inputId) {
                 try {
                     if (typeof computeModel !== "function") return null;
@@ -8717,74 +8745,78 @@ recommended height is 30&quot; off the floor.">?</button>
                         return (isFinite(n) && n > 0) ? s(n) : s(6);
                     }
 
+                    // faux drawer height: seed from the ACTUAL effective value used by drawing
+                    if (inputId === "fauxDrawerHeightPreset") {
+                        const el = document.getElementById("fauxDrawerHeightPreset");
+                        const isEqualMode = el?.dataset?.mode === "equal";
+
+                        if (isEqualMode) {
+                            const { openTopY, openBottomY } = computeCaseOpeningVertical(m);
+                            const openingHpx = Math.max(openBottomY - openTopY, 0);
+
+                            const layout = computeDrawerLayout(
+                                openingHpx,
+                                m.scale.inchToPx,
+                                "equal",
+                                m.drawerRailsMode || "none",
+                                m.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
+                                m
+                            );
+
+                            return s(layout?.effectiveTopDrawerIn);
+                        }
+
+                        const raw = m?.fauxDrawerHeightPreset;
+                        const n = parseFloat(raw);
+                        return (isFinite(n) && n > 0) ? s(n) : s(6);
+                    }
+
 
                     // ---- existing drawer-width seed logic (unchanged) ----
                     const secs = m?.sections || [];
-                    const n = secs.length;
-                    if (!n) return null;
+                    const sc = secs.length;
 
-                    const drawers = secs
-                        .map((sec, idx) => ({ sec, idx }))
-                        .filter(d => d.sec?.role === "drawer");
-
-                    if (!drawers.length) return null;
-
-                    if (inputId === "drawerWidthTwoSection" && n === 2 && drawers.length === 1) {
-                        return s(drawers[0].sec.widthIn);
+                    function clampToSectionWidth(valIn, idx) {
+                        const w = secs?.[idx]?.widthIn;
+                        if (!isFinite(w) || w <= 0) return s(valIn);
+                        return s(Math.min(Math.max(valIn, MIN_SECTION_WIDTH), w));
                     }
 
-                    if (inputId === "drawerWidthSingle" && n === 3) {
-                        return s(drawers[0].sec.widthIn);
+                    if (inputId === "drawerWidthSingle" && sc === 1) {
+                        return clampToSectionWidth(secs[0]?.widthIn ?? DEFAULT_SINGLE_DRAWER_WIDTH, 0);
                     }
 
-                    if (n === 5 || (n === 3 && drawers.length === 3)) {
-                        if (inputId === "drawerWidthOuter") {
-                            const outer = drawers.find(d => d.idx === 0) || drawers.find(d => d.idx === n - 1) || drawers[0];
-                            return outer ? s(outer.sec.widthIn) : null;
-                        }
-                        if (inputId === "drawerWidthCenter") {
-                            const center = drawers.find(d => d.idx !== 0 && d.idx !== n - 1) || drawers[0];
-                            return center ? s(center.sec.widthIn) : null;
-                        }
+                    if (inputId === "drawerWidthOuter" && sc >= 3) {
+                        return clampToSectionWidth(m?.drawerControls?.outerDrawerWidth ?? DEFAULT_OUTER_DRAWER_WIDTH, 0);
+                    }
+
+                    if (inputId === "drawerWidthCenter" && sc >= 3) {
+                        const mid = Math.floor(sc / 2);
+                        return clampToSectionWidth(m?.drawerControls?.centerDrawerWidth ?? DEFAULT_CENTER_DRAWER_WIDTH, mid);
+                    }
+
+                    if (inputId === "drawerWidthTwoSection" && sc === 2) {
+                        return clampToSectionWidth(m?.drawerControls?.twoSectionDrawerWidth ?? DEFAULT_TWO_SECTION_DRAWER_WIDTH, 0);
+                    }
+
+                    if (inputId === "drawerWidthSingle" && sc >= 3) {
+                        return clampToSectionWidth(m?.drawerControls?.singleDrawerWidth ?? DEFAULT_SINGLE_DRAWER_WIDTH, 0);
                     }
 
                     return null;
-                } catch {
+                } catch (e) {
                     return null;
                 }
             }
 
-            // bind once
             wraps.forEach((wrap) => {
-                if (wrap.dataset.stepperBound === "1") return;
-                wrap.dataset.stepperBound = "1";
-
                 const input = wrap.querySelector("input");
-                if (!input) return;
+                const btns = Array.from(wrap.querySelectorAll(".stepper-btn"));
+                if (!input || !btns.length) return;
 
-                const stepAttr = wrap.getAttribute("data-step");
-                const step = (stepAttr != null && stepAttr !== "") ? Number(stepAttr) : 0.25;
+                const step = parseFloat(wrap.getAttribute("data-step")) || 0.25;
 
-                // SNAP ON BLUR (manual typing)
-                input.addEventListener("blur", () => {
-                    const raw = String(input.value ?? "").trim();
-                    if (raw === "") return;
-
-                    if (input.id === "topDrawerHeightPreset" && raw !== "") input.dataset.mode = "fixed";
-
-                    const snapped = snapQ(raw);
-                    if (snapped == null) return;
-
-                    input.value = String(snapped);
-                    markDrawerOverride(input.id);
-
-                    input.dispatchEvent(
-                        new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
-                    );
-                });
-
-                // STEPPER BUTTONS
-                wrap.querySelectorAll(".stepper-btn").forEach((btn) => {
+                btns.forEach((btn) => {
                     btn.addEventListener("click", (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -8799,20 +8831,35 @@ recommended height is 30&quot; off the floor.">?</button>
                                 if (seed != null) input.value = String(seed);
                             }
 
+                            if (input.id === "fauxDrawerHeightPreset") {
+                                // ✅ Faux "=" means: match whatever the TOP drawer field is currently showing
+                                const topEl = document.getElementById("topDrawerHeightPreset");
+
+                                let v = parseFloat(String(topEl?.value ?? "").trim());
+                                if (!isFinite(v)) {
+                                    const seedTop = seedFromModel("topDrawerHeightPreset");
+                                    v = (seedTop != null) ? Number(seedTop) : NaN;
+                                }
+
+                                const snapped = snapQ(v);
+                                if (snapped != null) input.value = String(snapped);
+
+                                // Important: faux is NOT "equal-mode" math — it's a fixed number copied from top drawer
+                                input.dataset.mode = "fixed";
+                            }
+
+
                             input.dispatchEvent(
                                 new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
                             );
                             return;
                         }
 
-
-
-
                         const dir = Number(btn.getAttribute("data-dir"));
                         if (!isFinite(dir) || dir === 0) return;
 
                         if (input.id === "topDrawerHeightPreset") input.dataset.mode = "fixed";
-
+                        if (input.id === "fauxDrawerHeightPreset") input.dataset.mode = "fixed";
 
                         const raw = String(input.value ?? "").trim();
                         let base = parseFloat(raw);
@@ -8821,14 +8868,21 @@ recommended height is 30&quot; off the floor.">?</button>
                             const seed = seedFromModel(input.id);
                             base = (seed != null) ? Number(seed) : NaN;
                         }
-                        if (!isFinite(base)) base = 0;
 
-                        const next = base + dir * (isFinite(step) && step > 0 ? step : 0.25);
-                        const snapped = snapQ(next);
-                        if (snapped == null) return;
+                        if (!isFinite(base)) return;
 
-                        input.value = String(snapped);
-                        markDrawerOverride(input.id);
+                        const next = snapQ(base + dir * step);
+                        if (next == null) return;
+
+                        // respect min/max if present
+                        const min = parseFloat(input.getAttribute("min"));
+                        const max = parseFloat(input.getAttribute("max"));
+
+                        let clamped = next;
+                        if (isFinite(min)) clamped = Math.max(clamped, min);
+                        if (isFinite(max)) clamped = Math.min(clamped, max);
+
+                        input.value = String(clamped);
 
                         input.dispatchEvent(
                             new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
@@ -8836,6 +8890,54 @@ recommended height is 30&quot; off the floor.">?</button>
                     });
                 });
             });
+
+            // -----------------------------------------------------
+            // Faux drawer UI visibility + "=" availability
+            // -----------------------------------------------------
+            function updateFauxDrawerControls() {
+                const fauxSel = document.getElementById("fauxDrawerUnderSink");
+                const heightWrap = document.getElementById("fauxDrawerHeightField");
+                const heightInput = document.getElementById("fauxDrawerHeightPreset");
+                if (!fauxSel || !heightWrap || !heightInput) return;
+
+                const enabled = fauxSel.value === "yes";
+                heightWrap.style.display = enabled ? "block" : "none";
+
+                // "=" only if there is at least one REAL drawer section and more than 1 section total
+                const eqBtn = heightWrap.querySelector('.stepper-btn[data-action="equal"]');
+                if (eqBtn) {
+                    let canEqual = false;
+                    try {
+                        const m = computeModel();
+                        const secs = m?.sections || [];
+                        const hasDrawerSection = secs.some(s => s?.role === "drawer");
+                        canEqual = hasDrawerSection && secs.length > 1;
+                    } catch (e) { }
+
+                    eqBtn.style.display = canEqual ? "" : "none";
+
+                    // If "=" is not allowed, force fixed mode
+                    if (!canEqual && heightInput.dataset.mode === "equal") {
+                        heightInput.dataset.mode = "fixed";
+                        if (!String(heightInput.value ?? "").trim()) heightInput.value = "6";
+                    }
+                }
+            }
+
+            // Run once on load and whenever relevant inputs change
+            updateFauxDrawerControls();
+
+            const fauxSel = document.getElementById("fauxDrawerUnderSink");
+            if (fauxSel) {
+                fauxSel.addEventListener("change", () => updateFauxDrawerControls());
+            }
+            ["layoutPreset", "sinkCount", "sinkPosition", "doorDrawerPreset"].forEach((id) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener("change", () => updateFauxDrawerControls());
+            });
+
+
         }
 
 
