@@ -6428,10 +6428,15 @@ recommended height is 30&quot; off the floor.">?</button>
             const prevOffsetX = hasPrevAnchor ? (prevScrollLeft - prevAnchorX) : 0;
             const prevOffsetY = hasPrevAnchor ? (prevScrollTop - prevAnchorY) : 0;
 
-            clearSvg(svg);
+            // ---------------------------------------------------------
+            // 1) CLEAR SVG
+            // ---------------------------------------------------------
+            svg.innerHTML = "";
+
+            const isExpanded = document.body.classList.contains("drawing-expanded");
 
             // =========================================================
-            // ✅ DEFAULT VIEWPORT ZOOM (scales EVERYTHING evenly)
+            // ✅ DEFAULT VIEWPORT SCALE (desktop + mobile)
             // =========================================================
             const VIEW_ZOOM = getDefaultViewportZoom();
 
@@ -6490,23 +6495,13 @@ recommended height is 30&quot; off the floor.">?</button>
                 TEMP_BOTTOM_GUTTER_PX;
 
             if (rawHeightPx > MAX_DRAWING_HEIGHT_PX) {
-                effectivePx = basePx * (MAX_DRAWING_HEIGHT_PX / rawHeightPx);
+                effectivePx = MAX_DRAWING_HEIGHT_PX / (tallestHeightIn + 22);
             }
 
-            // ✅ keep: expanded mode scale lock
-            const isExpanded = document.body.classList.contains("drawing-expanded");
-            const lockedPx = Number(svg.dataset.lockedEffectivePx);
-            if (isExpanded && isFinite(lockedPx) && lockedPx > 0) {
-                effectivePx = lockedPx;
-            }
-
-            // remember what we actually drew at
-            svg.dataset.lastEffectivePx = String(effectivePx);
-
-            // -------------------------------
-            // 4) GUTTERS (NOW USING effectivePx)
-            // -------------------------------
-            const SINK_DIM_OFFSET_IN = 7;
+            // ---------------------------------------------------------
+            // 4) COMPUTE GUTTERS
+            // ---------------------------------------------------------
+            const SINK_DIM_OFFSET_IN = 8; // existing assumption used elsewhere
 
             const SIDE_GUTTER_PX = isExpanded
                 ? Math.max(6 * effectivePx, 40)
@@ -6530,7 +6525,7 @@ recommended height is 30&quot; off the floor.">?</button>
             svg.dataset.lastCabinetAnchorY = String(cabinetAnchorY_px);
 
             // -------------------------------
-            // 5) DRAW OBJECTS (HORIZONTAL FLOW)
+            // 5) DRAW OBJECTS
             // -------------------------------
             let cursorX = 0;
             const GAP_PX = 24;
@@ -6572,9 +6567,6 @@ recommended height is 30&quot; off the floor.">?</button>
             // ✅ EXPANDED MODE: ONE-TIME FIT (dims + labels INCLUDED)
             // =========================================================
 
-            // (rest of your existing logic below relies on cabinetAnchorX/Y and cabW/H in pixel space)
-            // We convert those where needed:
-
             const prevPanelW = Number(svg.dataset.lastPanelClientW);
             const prevPanelH = Number(svg.dataset.lastPanelClientH);
 
@@ -6604,7 +6596,10 @@ recommended height is 30&quot; off the floor.">?</button>
             if (panel) {
                 requestAnimationFrame(() => {
 
-                    if (isExpandedNow && svg.dataset.centerOnExpandedOnce === "1" && !userHasMovedView && !hasSelection && firstVanity) {
+                    const SAFE_PAD_PX = 16;
+
+                    function scrollDefaultToCabinet() {
+                        if (!panel || !firstVanity) return;
 
                         const cabW_px = (Number(firstVanity.model.widthIn) || 0) * effectivePx * VIEW_ZOOM;
                         const cabH_px = (Number(firstVanity.model.heightIn) || 0) * effectivePx * VIEW_ZOOM;
@@ -6612,38 +6607,36 @@ recommended height is 30&quot; off the floor.">?</button>
                         const cabCenterX = cabinetAnchorX_px + cabW_px / 2;
                         const cabCenterY = cabinetAnchorY_px + cabH_px / 2;
 
-                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
-                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+                        // If the cabinet itself can't fit, keep the leftmost dims visible.
+                        const cabinetTooWideForPanel = cabW_px > (panel.clientWidth - 2 * SAFE_PAD_PX);
 
+                        panel.scrollLeft = cabinetTooWideForPanel
+                            ? 0
+                            : Math.max(0, cabCenterX - (panel.clientWidth / 2));
+
+                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+                    }
+
+                    // ✅ FIRST DRAW (no previous anchor): default-center unless the cabinet can't fully fit
+                    if (!hasPrevAnchor && !isExpandedNow && !userHasMovedView && !hasSelection && firstVanity) {
+                        scrollDefaultToCabinet();
+                        return;
+                    }
+
+                    if (isExpandedNow && svg.dataset.centerOnExpandedOnce === "1" && !userHasMovedView && !hasSelection && firstVanity) {
+                        scrollDefaultToCabinet();
                         delete svg.dataset.centerOnExpandedOnce;
                         return;
                     }
 
                     if (!isExpandedNow && document.body.dataset.centerOnExitExpandedOnce === "1" && !userHasMovedView && !hasSelection && firstVanity) {
-
-                        const cabW_px = (Number(firstVanity.model.widthIn) || 0) * effectivePx * VIEW_ZOOM;
-                        const cabH_px = (Number(firstVanity.model.heightIn) || 0) * effectivePx * VIEW_ZOOM;
-
-                        const cabCenterX = cabinetAnchorX_px + cabW_px / 2;
-                        const cabCenterY = cabinetAnchorY_px + cabH_px / 2;
-
-                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
-                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
-
+                        scrollDefaultToCabinet();
                         delete document.body.dataset.centerOnExitExpandedOnce;
                         return;
                     }
 
                     if (panelResized && !isExpandedNow && !userHasMovedView && !hasSelection && firstVanity) {
-
-                        const cabW_px = (Number(firstVanity.model.widthIn) || 0) * effectivePx * VIEW_ZOOM;
-                        const cabH_px = (Number(firstVanity.model.heightIn) || 0) * effectivePx * VIEW_ZOOM;
-
-                        const cabCenterX = cabinetAnchorX_px + cabW_px / 2;
-                        const cabCenterY = cabinetAnchorY_px + cabH_px / 2;
-
-                        panel.scrollLeft = Math.max(0, cabCenterX - (panel.clientWidth / 2));
-                        panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+                        scrollDefaultToCabinet();
                         return;
                     }
 
