@@ -6598,6 +6598,27 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     const SAFE_PAD_PX = 16;
 
+                    // ✅ Detect manual panel scroll (separate from pinch-pan transform)
+                    const prevAutoL = Number(svg.dataset.lastAutoScrollLeft);
+                    const prevAutoT = Number(svg.dataset.lastAutoScrollTop);
+
+                    const userHasScrolledPanel =
+                        isFinite(prevAutoL) && isFinite(prevAutoT) &&
+                        (Math.abs(prevScrollLeft - prevAutoL) > MOVE_EPS_PX || Math.abs(prevScrollTop - prevAutoT) > MOVE_EPS_PX);
+
+                    const allowAutoCenter = !userHasMovedView && !hasSelection && !userHasScrolledPanel;
+
+                    // ✅ Standard (bottom pinned) panel: center once by default,
+                    // even if a previous anchor exists (mobile culprit).
+                    const needsStandardDefaultCenter = (svg.dataset.didStandardAutoCenter !== "1");
+
+                    if (!isExpandedNow && allowAutoCenter && firstVanity && needsStandardDefaultCenter) {
+                        scrollDefaultToCabinet();
+                        svg.dataset.didStandardAutoCenter = "1";
+                        return;
+                    }
+
+
                     function scrollDefaultToCabinet() {
                         if (!panel || !firstVanity) return;
 
@@ -6615,6 +6636,11 @@ recommended height is 30&quot; off the floor.">?</button>
                             : Math.max(0, cabCenterX - (panel.clientWidth / 2));
 
                         panel.scrollTop = Math.max(0, cabCenterY - (panel.clientHeight / 2));
+
+                        // ✅ record what *we* set, so we can detect real user scroll later
+                        svg.dataset.lastAutoScrollLeft = String(panel.scrollLeft);
+                        svg.dataset.lastAutoScrollTop = String(panel.scrollTop);
+
                     }
 
                     // ✅ FIRST DRAW (no previous anchor): default-center unless the cabinet can't fully fit
@@ -6643,6 +6669,11 @@ recommended height is 30&quot; off the floor.">?</button>
                     // Preserve view relative to cabinet anchor (pixel space)
                     panel.scrollLeft = Math.max(0, cabinetAnchorX_px + prevOffsetX);
                     panel.scrollTop = Math.max(0, cabinetAnchorY_px + prevOffsetY);
+
+                    // ✅ record what *we* set, so we can detect real user scroll later
+                    svg.dataset.lastAutoScrollLeft = String(panel.scrollLeft);
+                    svg.dataset.lastAutoScrollTop = String(panel.scrollTop);
+
                 });
 
                 return; // <-- stabilization handled; skip older grew/center logic
