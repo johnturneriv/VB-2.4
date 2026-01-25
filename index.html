@@ -5439,26 +5439,51 @@ recommended height is 30&quot; off the floor.">?</button>
             }
 
             // ✅ Draw rail rectangle, and return a "patch draw" function we can run LAST
-            function drawRailRectWithPatchesQueued(x, y, w, h) {
-                // draw the rail like other rails
+            function drawRailRectWithPatchesQueued(x, y, w, h, patchLeft, patchRight) {
+                // rail outline (matches other rails)
                 drawFaceRect(x, y, w, h);
 
-                // return deferred patch draw so caps render on top of later strokes
+                // defer patches so they sit on top of door/panels
                 return () => {
-                    const EXT = 0.75; // slightly stronger so it's visible
-                    const leftX = x;
-                    const rightX = x + w;
+                    // width of the tiny "knockout" at the rail ends (px)
+                    const PAD = 1.25;
 
-                    [leftX, rightX].forEach((xx) => {
-                        const cap = document.createElementNS(ns, "line");
-                        cap.setAttribute("x1", xx);
-                        cap.setAttribute("x2", xx);
-                        cap.setAttribute("y1", y - EXT);
-                        cap.setAttribute("y2", y + h + EXT);
-                        cap.setAttribute("stroke", STRUCTURE_COLOR);
-                        cap.setAttribute("stroke-width", STROKE);
-                        svg.appendChild(cap);
-                    });
+                    function whitePatch(pxX) {
+                        const r = document.createElementNS(ns, "rect");
+                        r.setAttribute("x", pxX);
+                        r.setAttribute("y", y);
+                        r.setAttribute("width", PAD);
+                        r.setAttribute("height", h);
+                        r.setAttribute("fill", "#ffffff"); // background knockout
+                        r.setAttribute("stroke", "none");
+                        svg.appendChild(r);
+                    }
+
+                    // Only patch interior boundaries (to match how your other rails look)
+                    if (patchLeft) whitePatch(x);
+                    if (patchRight) whitePatch(x + w - PAD);
+
+                    // Re-stroke the true section edges so they remain crisp
+                    if (patchLeft) {
+                        const l = document.createElementNS(ns, "line");
+                        l.setAttribute("x1", x);
+                        l.setAttribute("x2", x);
+                        l.setAttribute("y1", y);
+                        l.setAttribute("y2", y + h);
+                        l.setAttribute("stroke", STRUCTURE_COLOR);
+                        l.setAttribute("stroke-width", STROKE);
+                        svg.appendChild(l);
+                    }
+                    if (patchRight) {
+                        const l = document.createElementNS(ns, "line");
+                        l.setAttribute("x1", x + w);
+                        l.setAttribute("x2", x + w);
+                        l.setAttribute("y1", y);
+                        l.setAttribute("y2", y + h);
+                        l.setAttribute("stroke", STRUCTURE_COLOR);
+                        l.setAttribute("stroke-width", STROKE);
+                        svg.appendChild(l);
+                    }
                 };
             }
 
@@ -5625,7 +5650,17 @@ recommended height is 30&quot; off the floor.">?</button>
 
                             if (fauxRailPx > 0 && (faceH - fauxHpx - fauxRailPx) >= 2 * px) {
                                 // draw rail now, but queue the patch caps to draw LAST
-                                const patchFn = drawRailRectWithPatchesQueued(faceX, yAfterFaux, faceW, fauxRailPx);
+                                const patchLeft = idx > 0;
+                                const patchRight = idx < sections.length - 1;
+
+                                const patchFn = drawRailRectWithPatchesQueued(
+                                    faceX,
+                                    yAfterFaux,
+                                    faceW,
+                                    fauxRailPx,
+                                    patchLeft,
+                                    patchRight
+                                );
                                 if (typeof patchFn === "function") deferredPatchFns.push(patchFn);
 
                                 yAfterFaux += fauxRailPx;
