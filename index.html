@@ -1757,6 +1757,31 @@ recommended height is 30&quot; off the floor.">?</button>
                             </div>
                         </div>
 
+                        <!-- faux drawer under sink -->
+                        <div class="field md">
+                            <label for="fauxDrawerUnderSink">faux drawer under sink</label>
+                            <select id="fauxDrawerUnderSink">
+                                <option value="no" selected>no</option>
+                                <option value="yes">yes</option>
+                            </select>
+                        </div>
+
+                        <div class="field md" id="fauxDrawerHeightField" style="display:none;">
+                            <label for="fauxDrawerHeightPreset">faux drawer height (in)</label>
+                            <div class="stepper-input" data-step="0.25">
+                                <input id="fauxDrawerHeightPreset" type="number" min="4" max="10" step="0.25"
+                                    value="6" />
+                                <div class="stepper-btns">
+                                    <button type="button" class="stepper-btn" data-dir="1"
+                                        aria-label="increase">+</button>
+                                    <button type="button" class="stepper-btn" data-action="equal"
+                                        aria-label="equal">=</button>
+                                    <button type="button" class="stepper-btn" data-dir="-1"
+                                        aria-label="decrease">−</button>
+                                </div>
+                            </div>
+                        </div>
+
 
                         <div class="field sm" id="bottomDetailField">
                             <label>bottom detail</label>
@@ -2857,6 +2882,16 @@ recommended height is 30&quot; off the floor.">?</button>
                 ? "equal"
                 : (topDrawerEl?.value || "equal");
 
+            // ✅ Faux drawer under sink (UI -> model only)
+            const fauxDrawerUnderSink =
+                (document.getElementById("fauxDrawerUnderSink")?.value || "no") === "yes";
+
+            const fauxDrawerEl = document.getElementById("fauxDrawerHeightPreset");
+            const fauxDrawerIsEqual = fauxDrawerEl?.dataset?.mode === "equal";
+            const fauxDrawerHeightPreset = fauxDrawerIsEqual
+                ? "equal"
+                : (fauxDrawerEl?.value || "6");
+
             const floating = document.getElementById("floating")?.value === "true";
 
             const visibleSideStyle = document.getElementById("visibleSideStyle")?.value || "shaker";
@@ -3047,6 +3082,11 @@ recommended height is 30&quot; off the floor.">?</button>
                 doorStyle,
                 drawerStyle,
                 topDrawerHeightPreset,
+
+                // ✅ Faux drawer fields
+                fauxDrawerUnderSink,
+                fauxDrawerHeightPreset,
+
                 drawerStackConfig,
 
                 drawerRailsMode,
@@ -5379,9 +5419,13 @@ recommended height is 30&quot; off the floor.">?</button>
 
             const ns = "http://www.w3.org/2000/svg";
 
-            // =========================
-            // FACE RECT HELPER
-            // =========================
+            // -------------------------------------------------------
+            // LOCAL DRAW HELPERS (match old behavior)
+            // -------------------------------------------------------
+            const STROKE = 1;
+            const STRUCTURE_COLOR = "#0a0a0a";
+            const DIM_COLOR = "#94a3b8";
+
             function drawFaceRect(x, y, w, h) {
                 const r = document.createElementNS(ns, "rect");
                 r.setAttribute("x", x);
@@ -5395,9 +5439,28 @@ recommended height is 30&quot; off the floor.">?</button>
                 return r;
             }
 
-            // =========================
-            // SHAKER PANELS
-            // =========================
+            function drawRailRectWithPatches(x, y, w, h) {
+                // draw the rail exactly like other rails
+                drawFaceRect(x, y, w, h);
+
+                // add tiny end "patches" so the rail matches the drawer-rail look
+                const EXT = 0.5; // subtle extension (px) so caps are visible
+                const leftX = x;
+                const rightX = x + w;
+
+                [leftX, rightX].forEach((xx) => {
+                    const cap = document.createElementNS(ns, "line");
+                    cap.setAttribute("x1", xx);
+                    cap.setAttribute("x2", xx);
+                    cap.setAttribute("y1", y - EXT);
+                    cap.setAttribute("y2", y + h + EXT);
+                    cap.setAttribute("stroke", STRUCTURE_COLOR);
+                    cap.setAttribute("stroke-width", STROKE);
+                    svg.appendChild(cap);
+                });
+            }
+
+            // Old-style shaker panels (NO center-line trick)
             function addShakerPanels(x, y, w, h, railIn, kind) {
                 const railPx = railIn * px;
                 const inner1X = x + railPx;
@@ -5408,6 +5471,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 drawFaceRect(inner1X, inner1Y, inner1W, inner1H);
 
+                // double-shaker = second inset rectangle (like old)
                 if (kind === "double") {
                     const gapPx = 0.375 * px;
                     drawFaceRect(
@@ -5419,16 +5483,18 @@ recommended height is 30&quot; off the floor.">?</button>
                 }
             }
 
+            // Make drawer style dropdown actually affect rows (old logic)
             function resolveDrawerStyleForRow(baseStyle, rowIndex) {
                 if (baseStyle === "slab-shaker") return rowIndex === 0 ? "slab" : "shaker";
                 if (baseStyle === "slab-double-shaker") return rowIndex === 0 ? "slab" : "double-shaker";
                 return baseStyle;
             }
 
-            function computeEffectiveDrawerRails(style, faceHeightPx, px) {
+            // Rails/panels on drawers depend on style + face height (old logic)
+            function computeEffectiveDrawerRails(style, faceHeightPx, pxPerIn) {
                 if (style === "slab") return { kind: "slab", railIn: 0 };
 
-                const faceHeightIn = faceHeightPx / px;
+                const faceHeightIn = faceHeightPx / pxPerIn;
                 const minRailIn = 1.5;
                 const minPanelIn = 2.0;
 
@@ -5441,154 +5507,30 @@ recommended height is 30&quot; off the floor.">?</button>
                 return { kind: style === "double-shaker" ? "double" : "single", railIn };
             }
 
-            function drawDrawerFaceDimsForSection(
-                svg,
-                model,
-                sectionIndex,
-                x,
-                topY,
-                widthPx,
-                openingHeightPx,
-                layout
-            ) {
+            // Faux drawer eligibility (only door sections that hold sinks)
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            const sinkIdxSet = new Set(sinkIdx);
 
-                // ---------------------------------------------
-                // GLOBAL REDUNDANCY CHECK — override dims only
-                // ---------------------------------------------
-                const sections = model.sections || [];
-                const drawerSections = sections
-                    .map((sec, idx) => ({ sec, idx }))
-                    .filter(o => o.sec.role === "drawer");
-
-                // if only one drawer section, override dims are meaningless
-                if (drawerSections.length <= 1) return;
-
-                // compute effective drawer counts for all drawer sections
-                const fullOpeningHeightPx =
-                    computeCaseOpeningVertical(model).openBottomY -
-                    computeCaseOpeningVertical(model).openTopY;
-
-                const counts = drawerSections.map(({ idx }) => {
-                    const baseLayout = computeDrawerLayout(
-                        fullOpeningHeightPx,
-                        model.scale.inchToPx,
-                        model.topDrawerHeightPreset || "equal",
-                        model.drawerRailsMode || "none",
-                        model.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
-                        model
-                    );
-
-                    return getDrawerCountForSection(
-                        model,
-                        idx,
-                        baseLayout.drawerCount
-                    );
-                });
-
-                // if all drawer counts are equal, override dims add no info
-                const allEqual = counts.every(c => c === counts[0]);
-                if (allEqual) return;
-
-                const overrides = model?.sectionOverrides || (typeof sectionOverrides !== "undefined" ? sectionOverrides : {});
-                const o = overrides?.[sectionIndex];
-
-                const format = model._formatInchesFraction || formatInchesFraction;
-
-                // must have an override
-                if (!o || typeof o.drawerCount !== "number") return;
-
-                // --------------------------------------------------
-                // DETERMINE TRUE DEFAULT DRAWER COUNT
-                // --------------------------------------------------
-                const baseLayout = computeDrawerLayout(
-                    openingHeightPx,
-                    model.scale.inchToPx,
-                    model.topDrawerHeightPreset || "equal",
-                    model.drawerRailsMode || "none",
-                    model.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
-                    model
-                );
-
-                const defaultCount = baseLayout.drawerCount;
-
-                // 🔑 if override matches default → DO NOT show override dims
-                if (o.drawerCount === defaultCount) return;
-
-                // user explicitly hid them
-                if (o.drawerDimsHidden) return;
-
-                const ns = "http://www.w3.org/2000/svg";
-                const px = model.scale.inchToPx;
-
-                // visual style — subtle
-                const DIM_COLOR = "#94a3b8"; // slate-400
-                const FONT_SIZE = 8;
-
-                // centered within THIS SECTION
-                const dimX = x + widthPx / 2;
-
-                let curY = topY;
-
-                layout.heightsPx.forEach((hPx, i) => {
-                    const y1 = curY;
-                    const y2 = curY + hPx;
-
-                    const midY = y1 + hPx / 2;
-
-                    const label = document.createElementNS(ns, "text");
-                    label.setAttribute("x", dimX);
-                    label.setAttribute("y", midY);
-                    label.setAttribute("font-size", FONT_SIZE);
-                    label.setAttribute("text-anchor", "middle");
-                    label.setAttribute("dominant-baseline", "middle");
-                    label.setAttribute("fill", DIM_COLOR);
-                    label.setAttribute("fill-opacity", "0.6");
-                    label.textContent = `${format(hPx / px)}"`;
-                    svg.appendChild(label);
-
-                    curY += hPx;
-
-                    // skip rails visually
-                    if (layout.railHeightPx > 0) {
-                        if (
-                            (layout.mode === "all" && i < layout.drawerCount - 1) ||
-                            (layout.mode === "top" && i === 0)
-                        ) {
-                            curY += layout.railHeightPx;
-                        }
-                    }
-                });
-            }
-
-
+            // -------------------------------------------------------
+            // DRAW DRAWER STACKS
+            // -------------------------------------------------------
             function drawDrawerStack(x, y, w, h, baseDrawerStyle, sectionIndex) {
-
-                // 🔑 SINGLE SOURCE OF TRUTH
-                const layout = getFinalDrawerLayoutForSection(
-                    model,
-                    sectionIndex,
-                    h
-                );
+                const layout = getFinalDrawerLayoutForSection(model, sectionIndex, h);
 
                 let curY = y;
 
-                drawDrawerFaceDimsForSection(
-                    svg,
-                    model,
-                    sectionIndex,
-                    x,
-                    y,
-                    w,
-                    h,
-                    layout
-                );
+                // optional helper (only if it exists)
+                if (typeof drawDrawerFaceDimsForSection === "function") {
+                    drawDrawerFaceDimsForSection(svg, model, sectionIndex, x, y, w, h, layout);
+                }
 
                 layout.heightsPx.forEach((drawerH, i) => {
                     const rowStyle = resolveDrawerStyleForRow(baseDrawerStyle, i);
+
                     drawFaceRect(x, curY, w, drawerH);
 
                     if (rowStyle !== "slab") {
-                        const eff = computeEffectiveDrawerRails(rowStyle, drawerH, model.scale.inchToPx);
+                        const eff = computeEffectiveDrawerRails(rowStyle, drawerH, px);
                         if (eff.railIn > 0) {
                             addShakerPanels(x, curY, w, drawerH, eff.railIn, eff.kind);
                         }
@@ -5596,7 +5538,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     curY += drawerH;
 
-                    // 🔒 rails between drawers ONLY
+                    // ✅ FIX: rails are rectangles AND we advance curY (old behavior)
                     if (
                         layout.railHeightPx > 0 &&
                         (
@@ -5610,11 +5552,9 @@ recommended height is 30&quot; off the floor.">?</button>
                 });
             }
 
-
-
-            // =====================================================
+            // -------------------------------------------------------
             // MAIN LOOP
-            // =====================================================
+            // -------------------------------------------------------
             sections.forEach((sec, idx) => {
                 const isSelected = idx === selectedSectionIndex;
 
@@ -5623,27 +5563,86 @@ recommended height is 30&quot; off the floor.">?</button>
                 const faceTop = openTopY;
                 const faceH = openingHeight;
 
-                // ------------------------
-                // DRAW CONTENT
-                // ------------------------
                 if (sec.role === "drawer") {
                     drawDrawerStack(faceX, faceTop, faceW, faceH, drawerStyle, idx);
                 } else {
-                    drawFaceRect(faceX, faceTop, faceW, faceH);
-                    const o = sectionOverrides?.[idx];
+                    // ------------------------
+                    // FAUX DRAWER (door sections only, sink sections only)
+                    // ------------------------
+                    const fauxOn =
+                        model.fauxDrawerUnderSink === true &&
+                        sec.role === "door" &&
+                        sinkIdxSet.has(idx);
 
+                    let doorTop = faceTop;
+                    let doorH = faceH;
+
+                    if (fauxOn) {
+                        let fauxHIn = parseFloat(model.fauxDrawerHeightPreset);
+
+                        if (model.fauxDrawerHeightPreset === "equal") {
+                            const layoutForTop = computeDrawerLayout(
+                                faceH,
+                                px,
+                                topDrawerOption,
+                                drawerRailsMode,
+                                drawerRailHeightIn,
+                                model
+                            );
+                            if (isFinite(layoutForTop?.effectiveTopDrawerIn)) {
+                                fauxHIn = layoutForTop.effectiveTopDrawerIn;
+                            }
+                        }
+
+                        if (!isFinite(fauxHIn) || fauxHIn <= 0) fauxHIn = 6;
+                        fauxHIn = Math.min(Math.max(fauxHIn, 4), 10);
+
+                        const fauxHpx = Math.min(fauxHIn * px, faceH);
+
+                        if (faceH - fauxHpx >= 2 * px) {
+                            // faux drawer face uses drawer styling rules
+                            const fauxRowStyle = resolveDrawerStyleForRow(drawerStyle, 0);
+                            drawFaceRect(faceX, faceTop, faceW, fauxHpx);
+
+                            if (fauxRowStyle !== "slab") {
+                                const eff = computeEffectiveDrawerRails(fauxRowStyle, fauxHpx, px);
+                                if (eff.railIn > 0) {
+                                    addShakerPanels(faceX, faceTop, faceW, fauxHpx, eff.railIn, eff.kind);
+                                }
+                            }
+
+                            // ✅ ALWAYS draw a rail under faux drawer if rails are enabled
+                            // (doesn't matter "top only" vs "all" — faux->door boundary always gets a rail)
+                            const fauxRailPx = (drawerRailsMode && drawerRailsMode !== "none")
+                                ? (drawerRailHeightIn * px)
+                                : 0;
+
+                            let yAfterFaux = faceTop + fauxHpx;
+
+                            if (fauxRailPx > 0 && (faceH - fauxHpx - fauxRailPx) >= 2 * px) {
+                                drawRailRectWithPatches(faceX, yAfterFaux, faceW, fauxRailPx);
+                                yAfterFaux += fauxRailPx;
+                                doorH = faceH - fauxHpx - fauxRailPx;
+                            } else {
+                                doorH = faceH - fauxHpx;
+                            }
+
+                            doorTop = yAfterFaux;
+                        }
+                    }
+
+                    // door area
+                    drawFaceRect(faceX, doorTop, faceW, doorH);
+
+                    const o = sectionOverrides?.[idx];
                     const openingIn = sec.widthIn;
 
-                    // ----------------------------------
-                    // INTERIOR SHELF (VISUAL ONLY)
-                    // ----------------------------------
+                    // interior shelf (match old style: dashed, subtle)
                     if (o?.interiorShelf === true) {
-
-                        const SHELF_GAP_IN = 0.75; // 3/4"
+                        const SHELF_GAP_IN = 0.75;
                         const gapPx = SHELF_GAP_IN * px;
 
-                        const midY = faceTop + faceH / 2;
-
+                        const midY = doorTop + doorH / 2;
                         const y1 = midY - gapPx / 2;
                         const y2 = midY + gapPx / 2;
 
@@ -5651,58 +5650,34 @@ recommended height is 30&quot; off the floor.">?</button>
                             const l = document.createElementNS(ns, "line");
                             l.setAttribute("x1", faceX);
                             l.setAttribute("x2", faceX + faceW);
-
                             l.setAttribute("y1", y);
                             l.setAttribute("y2", y);
-
-                            // match dimension styling
                             l.setAttribute("stroke", DIM_COLOR);
                             l.setAttribute("stroke-width", 0.3);
-
                             l.setAttribute("stroke-dasharray", "6 3");
-
-
                             svg.appendChild(l);
                         });
                     }
 
-
-
-                    // ----------------------------------
-                    // DOOR LEAF RESOLUTION + CLAMPING
-                    // ----------------------------------
-
-                    // geometry allowance
+                    // door leaf resolution + clamping (unchanged behavior)
                     const canHaveOne = openingIn <= 26;
                     const canHaveTwo = openingIn >= 20;
 
-                    // default from geometry
                     let doorLeaves = canHaveTwo ? 2 : 1;
+                    if (o && typeof o.doorLeaves === "number") doorLeaves = o.doorLeaves;
 
-                    // user override (intent)
-                    if (o && typeof o.doorLeaves === "number") {
-                        doorLeaves = o.doorLeaves;
-                    }
-
-                    // clamp to geometry (DO NOT mutate override)
-                    if (doorLeaves === 2 && !canHaveTwo) {
-                        doorLeaves = 1;
-                    }
-                    if (doorLeaves === 1 && !canHaveOne) {
-                        doorLeaves = 2;
-                    }
+                    if (doorLeaves === 2 && !canHaveTwo) doorLeaves = 1;
+                    if (doorLeaves === 1 && !canHaveOne) doorLeaves = 2;
 
                     const useDouble = doorLeaves === 2;
-
-
 
                     if (useDouble) {
                         const cx = faceX + faceW / 2;
                         const split = document.createElementNS(ns, "line");
                         split.setAttribute("x1", cx);
-                        split.setAttribute("y1", faceTop);
+                        split.setAttribute("y1", doorTop);
                         split.setAttribute("x2", cx);
-                        split.setAttribute("y2", faceTop + faceH);
+                        split.setAttribute("y2", doorTop + doorH);
                         split.setAttribute("stroke", STRUCTURE_COLOR);
                         split.setAttribute("stroke-width", STROKE);
                         svg.appendChild(split);
@@ -5714,17 +5689,15 @@ recommended height is 30&quot; off the floor.">?</button>
 
                         if (useDouble) {
                             const w2 = faceW / 2;
-                            addShakerPanels(faceX, faceTop, w2, faceH, railIn, kind);
-                            addShakerPanels(faceX + w2, faceTop, w2, faceH, railIn, kind);
+                            addShakerPanels(faceX, doorTop, w2, doorH, railIn, kind);
+                            addShakerPanels(faceX + w2, doorTop, w2, doorH, railIn, kind);
                         } else {
-                            addShakerPanels(faceX, faceTop, faceW, faceH, railIn, kind);
+                            addShakerPanels(faceX, doorTop, faceW, doorH, railIn, kind);
                         }
                     }
                 }
 
-                // ------------------------
-                // SELECTION OVERLAY (doors + drawers)
-                // ------------------------
+                // selection overlay (doors + drawers)
                 if (isSelected) {
                     const sel = document.createElementNS(ns, "rect");
                     sel.setAttribute("x", faceX);
@@ -5738,10 +5711,8 @@ recommended height is 30&quot; off the floor.">?</button>
                     sel.classList.add("section-selected");
                     svg.appendChild(sel);
                 }
-
             });
         }
-
 
         function drawSectionHitTargets(svg, model) {
             const { sections, scale } = model;
@@ -5755,6 +5726,10 @@ recommended height is 30&quot; off the floor.">?</button>
             if (height <= 0) return;
 
             const ns = "http://www.w3.org/2000/svg";
+
+            // ✅ sink sections (used for faux drawer under sink)
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            const sinkIdxSet = new Set(sinkIdx);
 
             sections.forEach((sec, index) => {
                 const x = ox + sec.xIn * px;
@@ -8646,35 +8621,30 @@ recommended height is 30&quot; off the floor.">?</button>
             });
         }
 
-
         function setupQuarterInchSteppers() {
             const wraps = Array.from(document.querySelectorAll(".stepper-input"));
             if (!wraps.length) return;
 
-            const snapQ = (n) => {
-                const x = Number(n);
-                if (!isFinite(x)) return null;
-                return Math.round(x * 4) / 4;
-            };
+            function snapQ(n) {
+                const q = Math.round(n * 4) / 4;
+                return (isFinite(q) ? q : null);
+            }
 
             function isDrawerWidth(id) {
-                return (
-                    id === "drawerWidthSingle" ||
+                return id === "drawerWidthSingle" ||
                     id === "drawerWidthOuter" ||
                     id === "drawerWidthCenter" ||
-                    id === "drawerWidthTwoSection"
-                );
+                    id === "drawerWidthTwoSection";
             }
 
-            function markDrawerOverride(id) {
-                if (typeof drawerOverrideFlags === "undefined") return;
-                if (id === "drawerWidthSingle") { drawerOverrideFlags.single = true; lastDrawerEdited = "single"; }
-                if (id === "drawerWidthOuter") { drawerOverrideFlags.outer = true; lastDrawerEdited = "outer"; }
-                if (id === "drawerWidthCenter") { drawerOverrideFlags.center = true; lastDrawerEdited = "center"; }
-                if (id === "drawerWidthTwoSection") { drawerOverrideFlags.twoSection = true; lastDrawerEdited = "twoSection"; }
+            // ✅ Use an existing known redraw trigger (top drawer field already causes redraw)
+            function triggerRedraw() {
+                const top = document.getElementById("topDrawerHeightPreset");
+                if (!top) return;
+                top.dispatchEvent(new Event("input", { bubbles: true }));
+                top.dispatchEvent(new Event("change", { bubbles: true }));
             }
 
-            // Seed from current model (only if field is blank)
             function seedFromModel(inputId) {
                 try {
                     if (typeof computeModel !== "function") return null;
@@ -8685,16 +8655,15 @@ recommended height is 30&quot; off the floor.">?</button>
                         return (q != null && q > 0) ? q : null;
                     };
 
-                    // ✅ NEW: non-drawer steppers
+                    // non-drawer steppers
                     if (inputId === "toeKickHeight") return s(m?.toeKickHeightIn ?? 4);
                     if (inputId === "shelfSpaceIn") return s(m?.shelfSpaceIn ?? 8);
 
-                    // top drawer height: seed from the ACTUAL effective value used by drawing
+                    // top drawer height: seed from effective value used by drawing
                     if (inputId === "topDrawerHeightPreset") {
                         const el = document.getElementById("topDrawerHeightPreset");
                         const isEqualMode = el?.dataset?.mode === "equal";
 
-                        // If equal-mode, compute the same effective top drawer height the drawing uses.
                         if (isEqualMode) {
                             const { openTopY, openBottomY } = computeCaseOpeningVertical(m);
                             const openingHpx = Math.max(openBottomY - openTopY, 0);
@@ -8711,108 +8680,151 @@ recommended height is 30&quot; off the floor.">?</button>
                             return s(layout?.effectiveTopDrawerIn);
                         }
 
-                        // fixed-mode
                         const raw = m?.topDrawerHeightPreset;
                         const n = parseFloat(raw);
                         return (isFinite(n) && n > 0) ? s(n) : s(6);
                     }
 
+                    // faux drawer height: fixed-mode seed only (display value)
+                    if (inputId === "fauxDrawerHeightPreset") {
+                        const raw = m?.fauxDrawerHeightPreset;
+                        const n = parseFloat(raw);
+                        return (isFinite(n) && n > 0) ? s(n) : s(6);
+                    }
 
                     // ---- existing drawer-width seed logic (unchanged) ----
                     const secs = m?.sections || [];
-                    const n = secs.length;
-                    if (!n) return null;
+                    const sc = secs.length;
 
-                    const drawers = secs
-                        .map((sec, idx) => ({ sec, idx }))
-                        .filter(d => d.sec?.role === "drawer");
-
-                    if (!drawers.length) return null;
-
-                    if (inputId === "drawerWidthTwoSection" && n === 2 && drawers.length === 1) {
-                        return s(drawers[0].sec.widthIn);
+                    function clampToSectionWidth(valIn, idx) {
+                        const w = secs?.[idx]?.widthIn;
+                        if (!isFinite(w) || w <= 0) return s(valIn);
+                        return s(Math.min(Math.max(valIn, MIN_SECTION_WIDTH), w));
                     }
 
-                    if (inputId === "drawerWidthSingle" && n === 3) {
-                        return s(drawers[0].sec.widthIn);
+                    if (inputId === "drawerWidthSingle" && sc === 1) {
+                        return clampToSectionWidth(secs[0]?.widthIn ?? DEFAULT_SINGLE_DRAWER_WIDTH, 0);
                     }
 
-                    if (n === 5 || (n === 3 && drawers.length === 3)) {
-                        if (inputId === "drawerWidthOuter") {
-                            const outer = drawers.find(d => d.idx === 0) || drawers.find(d => d.idx === n - 1) || drawers[0];
-                            return outer ? s(outer.sec.widthIn) : null;
-                        }
-                        if (inputId === "drawerWidthCenter") {
-                            const center = drawers.find(d => d.idx !== 0 && d.idx !== n - 1) || drawers[0];
-                            return center ? s(center.sec.widthIn) : null;
-                        }
+                    if (inputId === "drawerWidthOuter" && sc >= 3) {
+                        return clampToSectionWidth(m?.drawerControls?.outerDrawerWidth ?? DEFAULT_OUTER_DRAWER_WIDTH, 0);
+                    }
+
+                    if (inputId === "drawerWidthCenter" && sc >= 3) {
+                        const mid = Math.floor(sc / 2);
+                        return clampToSectionWidth(m?.drawerControls?.centerDrawerWidth ?? DEFAULT_CENTER_DRAWER_WIDTH, mid);
+                    }
+
+                    if (inputId === "drawerWidthTwoSection" && sc === 2) {
+                        return clampToSectionWidth(m?.drawerControls?.twoSectionDrawerWidth ?? DEFAULT_TWO_SECTION_DRAWER_WIDTH, 0);
+                    }
+
+                    if (inputId === "drawerWidthSingle" && sc >= 3) {
+                        return clampToSectionWidth(m?.drawerControls?.singleDrawerWidth ?? DEFAULT_SINGLE_DRAWER_WIDTH, 0);
                     }
 
                     return null;
-                } catch {
+                } catch (e) {
                     return null;
                 }
             }
 
-            // bind once
+            // =====================================================
+            // ✅ Faux auto-match-top behavior (UI-only)
+            // =====================================================
+            function syncFauxToTopIfAuto() {
+                const fauxSel = document.getElementById("fauxDrawerUnderSink");
+                const fauxInput = document.getElementById("fauxDrawerHeightPreset");
+                const topEl = document.getElementById("topDrawerHeightPreset");
+
+                if (!fauxSel || !fauxInput || !topEl) return;
+                if (fauxSel.value !== "yes") return;
+
+                // only sync while user hasn't overridden faux height
+                if (fauxInput.dataset.autoMatchTop !== "true") return;
+
+                // If there are no real drawer sections, do not try to sync.
+                // (No "top drawers" to match.)
+                try {
+                    const m = computeModel();
+                    const secs = m?.sections || [];
+                    const hasDrawerSection = secs.some(s => s?.role === "drawer");
+                    if (!hasDrawerSection) return;
+                } catch (e) {
+                    return;
+                }
+
+                // Use the CURRENT DISPLAYED top drawer value (not raw preset)
+                let v = parseFloat(String(topEl.value ?? "").trim());
+                if (!isFinite(v)) {
+                    const seedTop = seedFromModel("topDrawerHeightPreset");
+                    v = (seedTop != null) ? Number(seedTop) : NaN;
+                }
+
+                const snapped = snapQ(v);
+                if (snapped == null) return;
+
+                fauxInput.value = String(snapped);
+                fauxInput.dataset.mode = "fixed"; // faux is always a concrete value
+            }
+
             wraps.forEach((wrap) => {
-                if (wrap.dataset.stepperBound === "1") return;
-                wrap.dataset.stepperBound = "1";
-
                 const input = wrap.querySelector("input");
-                if (!input) return;
+                const btns = Array.from(wrap.querySelectorAll(".stepper-btn"));
+                if (!input || !btns.length) return;
 
-                const stepAttr = wrap.getAttribute("data-step");
-                const step = (stepAttr != null && stepAttr !== "") ? Number(stepAttr) : 0.25;
+                const step = parseFloat(wrap.getAttribute("data-step")) || 0.25;
 
-                // SNAP ON BLUR (manual typing)
-                input.addEventListener("blur", () => {
-                    const raw = String(input.value ?? "").trim();
-                    if (raw === "") return;
-
-                    if (input.id === "topDrawerHeightPreset" && raw !== "") input.dataset.mode = "fixed";
-
-                    const snapped = snapQ(raw);
-                    if (snapped == null) return;
-
-                    input.value = String(snapped);
-                    markDrawerOverride(input.id);
-
-                    input.dispatchEvent(
-                        new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
-                    );
-                });
-
-                // STEPPER BUTTONS
-                wrap.querySelectorAll(".stepper-btn").forEach((btn) => {
+                btns.forEach((btn) => {
                     btn.addEventListener("click", (e) => {
                         e.preventDefault();
                         e.stopPropagation();
 
                         const action = btn.getAttribute("data-action");
                         if (action === "equal") {
-                            // equal-mode, but field should SHOW the effective value used by the drawing
+                            // top drawer "=" keeps existing behavior
                             if (input.id === "topDrawerHeightPreset") {
                                 input.dataset.mode = "equal";
-
                                 const seed = seedFromModel("topDrawerHeightPreset");
                                 if (seed != null) input.value = String(seed);
+
+                                // ✅ if faux is in auto-match mode, keep it synced
+                                syncFauxToTopIfAuto();
+                            }
+
+                            // faux "=" matches whatever the TOP drawer field is currently showing,
+                            // and also counts as a manual override (turn off auto-match)
+                            if (input.id === "fauxDrawerHeightPreset") {
+                                const topEl = document.getElementById("topDrawerHeightPreset");
+
+                                let v = parseFloat(String(topEl?.value ?? "").trim());
+                                if (!isFinite(v)) {
+                                    const seedTop = seedFromModel("topDrawerHeightPreset");
+                                    v = (seedTop != null) ? Number(seedTop) : NaN;
+                                }
+
+                                const snapped = snapQ(v);
+                                if (snapped != null) input.value = String(snapped);
+
+                                input.dataset.mode = "fixed";
+                                input.dataset.autoMatchTop = "false"; // ✅ override
                             }
 
                             input.dispatchEvent(
                                 new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
                             );
+
+                            // ensure faux changes redraw immediately
+                            if (input.id === "fauxDrawerHeightPreset") triggerRedraw();
+
                             return;
                         }
-
-
-
 
                         const dir = Number(btn.getAttribute("data-dir"));
                         if (!isFinite(dir) || dir === 0) return;
 
                         if (input.id === "topDrawerHeightPreset") input.dataset.mode = "fixed";
-
+                        if (input.id === "fauxDrawerHeightPreset") input.dataset.mode = "fixed";
 
                         const raw = String(input.value ?? "").trim();
                         let base = parseFloat(raw);
@@ -8821,23 +8833,124 @@ recommended height is 30&quot; off the floor.">?</button>
                             const seed = seedFromModel(input.id);
                             base = (seed != null) ? Number(seed) : NaN;
                         }
-                        if (!isFinite(base)) base = 0;
 
-                        const next = base + dir * (isFinite(step) && step > 0 ? step : 0.25);
-                        const snapped = snapQ(next);
-                        if (snapped == null) return;
+                        if (!isFinite(base)) return;
 
-                        input.value = String(snapped);
-                        markDrawerOverride(input.id);
+                        const next = snapQ(base + dir * step);
+                        if (next == null) return;
+
+                        // respect min/max if present
+                        const min = parseFloat(input.getAttribute("min"));
+                        const max = parseFloat(input.getAttribute("max"));
+
+                        let clamped = next;
+                        if (isFinite(min)) clamped = Math.max(clamped, min);
+                        if (isFinite(max)) clamped = Math.min(clamped, max);
+
+                        input.value = String(clamped);
 
                         input.dispatchEvent(
                             new Event(isDrawerWidth(input.id) ? "change" : "input", { bubbles: true })
                         );
+
+                        // ✅ if top drawer changed and faux is auto-match, keep faux synced
+                        if (input.id === "topDrawerHeightPreset") {
+                            syncFauxToTopIfAuto();
+                            triggerRedraw();
+                        }
+
+                        // faux +/- is a manual override
+                        if (input.id === "fauxDrawerHeightPreset") {
+                            input.dataset.autoMatchTop = "false";
+                            triggerRedraw();
+                        }
                     });
                 });
             });
-        }
 
+            // -----------------------------------------------------
+            // Faux drawer UI visibility + "=" availability + redraw
+            // -----------------------------------------------------
+            function updateFauxDrawerControls() {
+                const fauxSel = document.getElementById("fauxDrawerUnderSink");
+                const heightWrap = document.getElementById("fauxDrawerHeightField");
+                const heightInput = document.getElementById("fauxDrawerHeightPreset");
+                if (!fauxSel || !heightWrap || !heightInput) return;
+
+                const enabled = fauxSel.value === "yes";
+                heightWrap.style.display = enabled ? "block" : "none";
+
+                // "=" only if there is at least one REAL drawer section and more than 1 section total
+                const eqBtn = heightWrap.querySelector('.stepper-btn[data-action="equal"]');
+                if (eqBtn) {
+                    let canEqual = false;
+                    try {
+                        const m = computeModel();
+                        const secs = m?.sections || [];
+                        const hasDrawerSection = secs.some(s => s?.role === "drawer");
+                        canEqual = hasDrawerSection && secs.length > 1;
+                    } catch (e) { }
+
+                    eqBtn.style.display = canEqual ? "" : "none";
+
+                    if (!canEqual && heightInput.dataset.mode === "equal") {
+                        heightInput.dataset.mode = "fixed";
+                        if (!String(heightInput.value ?? "").trim()) heightInput.value = "6";
+                    }
+                }
+
+                // ✅ when enabling faux, start in auto-match-top mode (if drawers exist)
+                if (enabled) {
+                    if (heightInput.dataset.autoMatchTop !== "false") {
+                        heightInput.dataset.autoMatchTop = "true";
+                    }
+                    syncFauxToTopIfAuto();
+                } else {
+                    // turning off faux resets auto-match for next time
+                    heightInput.dataset.autoMatchTop = "true";
+                }
+
+                // redraw when showing/hiding or enabling/disabling
+                triggerRedraw();
+            }
+
+            updateFauxDrawerControls();
+
+            const fauxSel = document.getElementById("fauxDrawerUnderSink");
+            if (fauxSel) {
+                fauxSel.addEventListener("change", () => updateFauxDrawerControls());
+            }
+
+            // redraw + override when user types in faux height manually
+            const fauxHeight = document.getElementById("fauxDrawerHeightPreset");
+            if (fauxHeight) {
+                fauxHeight.addEventListener("input", () => {
+                    fauxHeight.dataset.autoMatchTop = "false"; // ✅ override
+                    triggerRedraw();
+                });
+                fauxHeight.addEventListener("change", () => {
+                    fauxHeight.dataset.autoMatchTop = "false"; // ✅ override
+                    triggerRedraw();
+                });
+            }
+
+            // ✅ whenever top drawer changes (typing), keep faux synced if auto-match
+            const topEl = document.getElementById("topDrawerHeightPreset");
+            if (topEl) {
+                topEl.addEventListener("input", () => {
+                    syncFauxToTopIfAuto();
+                });
+                topEl.addEventListener("change", () => {
+                    syncFauxToTopIfAuto();
+                });
+            }
+
+            ["layoutPreset", "sinkCount", "sinkPosition", "doorDrawerPreset"].forEach((id) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener("change", () => updateFauxDrawerControls());
+            });
+        }
 
         function setupMobileDrawingBarHandlers() {
             const expandBtn = document.getElementById("mobile-expand-button");     // "full screen"
