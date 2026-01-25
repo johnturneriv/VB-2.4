@@ -5419,9 +5419,13 @@ recommended height is 30&quot; off the floor.">?</button>
 
             const ns = "http://www.w3.org/2000/svg";
 
-            // =========================
-            // FACE RECT HELPER
-            // =========================
+            // -------------------------------------------------------
+            // DRAW HELPERS (local, draw-only)
+            // -------------------------------------------------------
+
+            const STROKE = 1;
+            const STRUCTURE_COLOR = "#0a0a0a";
+
             function drawFaceRect(x, y, w, h) {
                 const r = document.createElementNS(ns, "rect");
                 r.setAttribute("x", x);
@@ -5432,177 +5436,65 @@ recommended height is 30&quot; off the floor.">?</button>
                 r.setAttribute("stroke", STRUCTURE_COLOR);
                 r.setAttribute("stroke-width", STROKE);
                 svg.appendChild(r);
-                return r;
             }
 
-            // =========================
-            // SHAKER PANELS
-            // =========================
             function addShakerPanels(x, y, w, h, railIn, kind) {
                 const railPx = railIn * px;
-                const inner1X = x + railPx;
-                const inner1Y = y + railPx;
-                const inner1W = w - 2 * railPx;
-                const inner1H = h - 2 * railPx;
-                if (inner1W <= 0 || inner1H <= 0) return;
 
-                drawFaceRect(inner1X, inner1Y, inner1W, inner1H);
+                const inset = railPx;
+                const innerX = x + inset;
+                const innerY = y + inset;
+                const innerW = Math.max(0, w - 2 * inset);
+                const innerH = Math.max(0, h - 2 * inset);
+
+                const r = document.createElementNS(ns, "rect");
+                r.setAttribute("x", innerX);
+                r.setAttribute("y", innerY);
+                r.setAttribute("width", innerW);
+                r.setAttribute("height", innerH);
+                r.setAttribute("fill", "none");
+                r.setAttribute("stroke", STRUCTURE_COLOR);
+                r.setAttribute("stroke-width", STROKE);
+                svg.appendChild(r);
 
                 if (kind === "double") {
-                    const gapPx = 0.375 * px;
-                    drawFaceRect(
-                        inner1X + gapPx,
-                        inner1Y + gapPx,
-                        inner1W - 2 * gapPx,
-                        inner1H - 2 * gapPx
-                    );
+                    const midX = x + w / 2;
+                    const l = document.createElementNS(ns, "line");
+                    l.setAttribute("x1", midX);
+                    l.setAttribute("y1", y + inset);
+                    l.setAttribute("x2", midX);
+                    l.setAttribute("y2", y + h - inset);
+                    l.setAttribute("stroke", STRUCTURE_COLOR);
+                    l.setAttribute("stroke-width", STROKE);
+                    svg.appendChild(l);
                 }
+            }
+
+            function computeEffectiveDrawerRails(rowStyle, drawerHpx, inchToPx) {
+                // matches existing drawer logic: rails depend on style
+                // (this function exists elsewhere too; keep this call consistent with your existing usage)
+                return window.computeEffectiveDrawerRails
+                    ? window.computeEffectiveDrawerRails(rowStyle, drawerHpx, inchToPx)
+                    : { railIn: 0, kind: "single" };
             }
 
             function resolveDrawerStyleForRow(baseStyle, rowIndex) {
-                if (baseStyle === "slab-shaker") return rowIndex === 0 ? "slab" : "shaker";
-                if (baseStyle === "slab-double-shaker") return rowIndex === 0 ? "slab" : "double-shaker";
-                return baseStyle;
+                return window.resolveDrawerStyleForRow
+                    ? window.resolveDrawerStyleForRow(baseStyle, rowIndex)
+                    : baseStyle;
             }
 
-            function computeEffectiveDrawerRails(style, faceHeightPx, px) {
-                if (style === "slab") return { kind: "slab", railIn: 0 };
+            // =====================================================
+            // Faux drawer eligibility (only door sections that hold sinks)
+            // =====================================================
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            const sinkIdxSet = new Set(sinkIdx);
 
-                const faceHeightIn = faceHeightPx / px;
-                const minRailIn = 1.5;
-                const minPanelIn = 2.0;
-
-                if (faceHeightIn < 2 * minRailIn + minPanelIn) {
-                    return { kind: "slab", railIn: 0 };
-                }
-
-                const maxRail = (faceHeightIn - minPanelIn) / 2;
-                const railIn = Math.max(minRailIn, Math.min(2.0, maxRail));
-                return { kind: style === "double-shaker" ? "double" : "single", railIn };
-            }
-
-            function drawDrawerFaceDimsForSection(
-                svg,
-                model,
-                sectionIndex,
-                x,
-                topY,
-                widthPx,
-                openingHeightPx,
-                layout
-            ) {
-
-                // ---------------------------------------------
-                // GLOBAL REDUNDANCY CHECK — override dims only
-                // ---------------------------------------------
-                const sections = model.sections || [];
-                const drawerSections = sections
-                    .map((sec, idx) => ({ sec, idx }))
-                    .filter(o => o.sec.role === "drawer");
-
-                // if only one drawer section, override dims are meaningless
-                if (drawerSections.length <= 1) return;
-
-                // compute effective drawer counts for all drawer sections
-                const fullOpeningHeightPx =
-                    computeCaseOpeningVertical(model).openBottomY -
-                    computeCaseOpeningVertical(model).openTopY;
-
-                const counts = drawerSections.map(({ idx }) => {
-                    const baseLayout = computeDrawerLayout(
-                        fullOpeningHeightPx,
-                        model.scale.inchToPx,
-                        model.topDrawerHeightPreset || "equal",
-                        model.drawerRailsMode || "none",
-                        model.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
-                        model
-                    );
-
-                    return getDrawerCountForSection(
-                        model,
-                        idx,
-                        baseLayout.drawerCount
-                    );
-                });
-
-                // if all drawer counts are equal, override dims add no info
-                const allEqual = counts.every(c => c === counts[0]);
-                if (allEqual) return;
-
-                const overrides = model?.sectionOverrides || (typeof sectionOverrides !== "undefined" ? sectionOverrides : {});
-                const o = overrides?.[sectionIndex];
-
-                const format = model._formatInchesFraction || formatInchesFraction;
-
-                // must have an override
-                if (!o || typeof o.drawerCount !== "number") return;
-
-                // --------------------------------------------------
-                // DETERMINE TRUE DEFAULT DRAWER COUNT
-                // --------------------------------------------------
-                const baseLayout = computeDrawerLayout(
-                    openingHeightPx,
-                    model.scale.inchToPx,
-                    model.topDrawerHeightPreset || "equal",
-                    model.drawerRailsMode || "none",
-                    model.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
-                    model
-                );
-
-                const defaultCount = baseLayout.drawerCount;
-
-                // 🔑 if override matches default → DO NOT show override dims
-                if (o.drawerCount === defaultCount) return;
-
-                // user explicitly hid them
-                if (o.drawerDimsHidden) return;
-
-                const ns = "http://www.w3.org/2000/svg";
-                const px = model.scale.inchToPx;
-
-                // visual style — subtle
-                const DIM_COLOR = "#94a3b8"; // slate-400
-                const FONT_SIZE = 8;
-
-                // centered within THIS SECTION
-                const dimX = x + widthPx / 2;
-
-                let curY = topY;
-
-                layout.heightsPx.forEach((hPx, i) => {
-                    const y1 = curY;
-                    const y2 = curY + hPx;
-
-                    const midY = y1 + hPx / 2;
-
-                    const label = document.createElementNS(ns, "text");
-                    label.setAttribute("x", dimX);
-                    label.setAttribute("y", midY);
-                    label.setAttribute("font-size", FONT_SIZE);
-                    label.setAttribute("text-anchor", "middle");
-                    label.setAttribute("dominant-baseline", "middle");
-                    label.setAttribute("fill", DIM_COLOR);
-                    label.setAttribute("fill-opacity", "0.6");
-                    label.textContent = `${format(hPx / px)}"`;
-                    svg.appendChild(label);
-
-                    curY += hPx;
-
-                    // skip rails visually
-                    if (layout.railHeightPx > 0) {
-                        if (
-                            (layout.mode === "all" && i < layout.drawerCount - 1) ||
-                            (layout.mode === "top" && i === 0)
-                        ) {
-                            curY += layout.railHeightPx;
-                        }
-                    }
-                });
-            }
-
+            // =====================================================
+            // DRAW DRAWER STACKS (existing behavior)
+            // =====================================================
 
             function drawDrawerStack(x, y, w, h, baseDrawerStyle, sectionIndex) {
-
                 // 🔑 SINGLE SOURCE OF TRUTH
                 const layout = getFinalDrawerLayoutForSection(
                     model,
@@ -5612,16 +5504,6 @@ recommended height is 30&quot; off the floor.">?</button>
 
                 let curY = y;
 
-                drawDrawerFaceDimsForSection(
-                    svg,
-                    model,
-                    sectionIndex,
-                    x,
-                    y,
-                    w,
-                    h,
-                    layout
-                );
 
                 layout.heightsPx.forEach((drawerH, i) => {
                     const rowStyle = resolveDrawerStyleForRow(baseDrawerStyle, i);
@@ -5644,13 +5526,17 @@ recommended height is 30&quot; off the floor.">?</button>
                             (layout.mode === "top" && i === 0 && layout.drawerCount > 1)
                         )
                     ) {
-                        drawFaceRect(x, curY, w, layout.railHeightPx);
-                        curY += layout.railHeightPx;
+                        const l = document.createElementNS(ns, "line");
+                        l.setAttribute("x1", x);
+                        l.setAttribute("x2", x + w);
+                        l.setAttribute("y1", curY);
+                        l.setAttribute("y2", curY);
+                        l.setAttribute("stroke", STRUCTURE_COLOR);
+                        l.setAttribute("stroke-width", layout.railHeightPx);
+                        svg.appendChild(l);
                     }
                 });
             }
-
-
 
             // =====================================================
             // MAIN LOOP
@@ -5669,20 +5555,71 @@ recommended height is 30&quot; off the floor.">?</button>
                 if (sec.role === "drawer") {
                     drawDrawerStack(faceX, faceTop, faceW, faceH, drawerStyle, idx);
                 } else {
-                    drawFaceRect(faceX, faceTop, faceW, faceH);
                     const o = sectionOverrides?.[idx];
-
                     const openingIn = sec.widthIn;
 
                     // ----------------------------------
-                    // INTERIOR SHELF (VISUAL ONLY)
+                    // FAUX DRAWER (door sections only, sink sections only)
+                    // ----------------------------------
+                    const fauxOn =
+                        model.fauxDrawerUnderSink === true &&
+                        sinkIdxSet.has(idx);
+
+                    let doorTopY = faceTop;
+                    let doorHpx = faceH;
+
+                    if (fauxOn) {
+                        let fauxHIn = parseFloat(model.fauxDrawerHeightPreset);
+
+                        // defensive fallback: if set to "equal" (or invalid), match effective top drawer height
+                        if (model.fauxDrawerHeightPreset === "equal" || !isFinite(fauxHIn)) {
+                            const layoutTop = computeDrawerLayout(
+                                faceH,
+                                px,
+                                topDrawerOption,
+                                drawerRailsMode,
+                                drawerRailHeightIn,
+                                model
+                            );
+                            if (isFinite(layoutTop?.effectiveTopDrawerIn)) {
+                                fauxHIn = layoutTop.effectiveTopDrawerIn;
+                            }
+                        }
+
+                        if (!isFinite(fauxHIn) || fauxHIn <= 0) fauxHIn = 6;
+                        fauxHIn = Math.min(Math.max(fauxHIn, 4), 10);
+
+                        const fauxHpx = Math.min(fauxHIn * px, faceH);
+
+                        // only draw faux if it leaves meaningful door height
+                        if (faceH - fauxHpx >= 2 * px) {
+                            // faux drawer face uses drawer styling
+                            drawFaceRect(faceX, faceTop, faceW, fauxHpx);
+
+                            const fauxRowStyle = resolveDrawerStyleForRow(drawerStyle, 0);
+                            if (fauxRowStyle !== "slab") {
+                                const eff = computeEffectiveDrawerRails(fauxRowStyle, fauxHpx, px);
+                                if (eff.railIn > 0) {
+                                    addShakerPanels(faceX, faceTop, faceW, fauxHpx, eff.railIn, eff.kind);
+                                }
+                            }
+
+                            doorTopY = faceTop + fauxHpx;
+                            doorHpx = faceH - fauxHpx;
+                        }
+                    }
+
+                    // door face area (below faux drawer if present)
+                    drawFaceRect(faceX, doorTopY, faceW, doorHpx);
+
+                    // ----------------------------------
+                    // INTERIOR SHELF (VISUAL ONLY) — centered in DOOR AREA
                     // ----------------------------------
                     if (o?.interiorShelf === true) {
-
                         const SHELF_GAP_IN = 0.75; // 3/4"
                         const gapPx = SHELF_GAP_IN * px;
 
-                        const midY = faceTop + faceH / 2;
+                        const midY = doorTopY + doorHpx / 2;
 
                         const y1 = midY - gapPx / 2;
                         const y2 = midY + gapPx / 2;
@@ -5698,15 +5635,11 @@ recommended height is 30&quot; off the floor.">?</button>
                             // match dimension styling
                             l.setAttribute("stroke", DIM_COLOR);
                             l.setAttribute("stroke-width", 0.3);
-
                             l.setAttribute("stroke-dasharray", "6 3");
-
 
                             svg.appendChild(l);
                         });
                     }
-
-
 
                     // ----------------------------------
                     // DOOR LEAF RESOLUTION + CLAMPING
@@ -5734,15 +5667,13 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     const useDouble = doorLeaves === 2;
 
-
-
                     if (useDouble) {
                         const cx = faceX + faceW / 2;
                         const split = document.createElementNS(ns, "line");
                         split.setAttribute("x1", cx);
-                        split.setAttribute("y1", faceTop);
+                        split.setAttribute("y1", doorTopY);
                         split.setAttribute("x2", cx);
-                        split.setAttribute("y2", faceTop + faceH);
+                        split.setAttribute("y2", doorTopY + doorHpx);
                         split.setAttribute("stroke", STRUCTURE_COLOR);
                         split.setAttribute("stroke-width", STROKE);
                         svg.appendChild(split);
@@ -5754,34 +5685,16 @@ recommended height is 30&quot; off the floor.">?</button>
 
                         if (useDouble) {
                             const w2 = faceW / 2;
-                            addShakerPanels(faceX, faceTop, w2, faceH, railIn, kind);
-                            addShakerPanels(faceX + w2, faceTop, w2, faceH, railIn, kind);
+                            addShakerPanels(faceX, doorTopY, w2, doorHpx, railIn, kind);
+                            addShakerPanels(faceX + w2, doorTopY, w2, doorHpx, railIn, kind);
                         } else {
-                            addShakerPanels(faceX, faceTop, faceW, faceH, railIn, kind);
+                            addShakerPanels(faceX, doorTopY, faceW, doorHpx, railIn, kind);
                         }
                     }
                 }
 
-                // ------------------------
-                // SELECTION OVERLAY (doors + drawers)
-                // ------------------------
-                if (isSelected) {
-                    const sel = document.createElementNS(ns, "rect");
-                    sel.setAttribute("x", faceX);
-                    sel.setAttribute("y", faceTop);
-                    sel.setAttribute("width", faceW);
-                    sel.setAttribute("height", faceH);
-                    sel.setAttribute("fill", "none");
-                    sel.setAttribute("stroke", "#3b82f6");
-                    sel.setAttribute("stroke-width", 1.5);
-                    sel.setAttribute("pointer-events", "none");
-                    sel.classList.add("section-selected");
-                    svg.appendChild(sel);
-                }
-
             });
         }
-
 
         function drawSectionHitTargets(svg, model) {
             const { sections, scale } = model;
@@ -5795,6 +5708,10 @@ recommended height is 30&quot; off the floor.">?</button>
             if (height <= 0) return;
 
             const ns = "http://www.w3.org/2000/svg";
+
+            // ✅ sink sections (used for faux drawer under sink)
+            const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+            const sinkIdxSet = new Set(sinkIdx);
 
             sections.forEach((sec, index) => {
                 const x = ox + sec.xIn * px;
