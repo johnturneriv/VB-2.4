@@ -5439,6 +5439,27 @@ recommended height is 30&quot; off the floor.">?</button>
                 return r;
             }
 
+            function drawRailRectWithPatches(x, y, w, h) {
+                // draw the rail exactly like other rails
+                drawFaceRect(x, y, w, h);
+
+                // add tiny end "patches" so the rail matches the drawer-rail look
+                const EXT = 0.5; // subtle extension (px) so caps are visible
+                const leftX = x;
+                const rightX = x + w;
+
+                [leftX, rightX].forEach((xx) => {
+                    const cap = document.createElementNS(ns, "line");
+                    cap.setAttribute("x1", xx);
+                    cap.setAttribute("x2", xx);
+                    cap.setAttribute("y1", y - EXT);
+                    cap.setAttribute("y2", y + h + EXT);
+                    cap.setAttribute("stroke", STRUCTURE_COLOR);
+                    cap.setAttribute("stroke-width", STROKE);
+                    svg.appendChild(cap);
+                });
+            }
+
             // Old-style shaker panels (NO center-line trick)
             function addShakerPanels(x, y, w, h, railIn, kind) {
                 const railPx = railIn * px;
@@ -5599,7 +5620,7 @@ recommended height is 30&quot; off the floor.">?</button>
                             let yAfterFaux = faceTop + fauxHpx;
 
                             if (fauxRailPx > 0 && (faceH - fauxHpx - fauxRailPx) >= 2 * px) {
-                                drawFaceRect(faceX, yAfterFaux, faceW, fauxRailPx);
+                                drawRailRectWithPatches(faceX, yAfterFaux, faceW, fauxRailPx);
                                 yAfterFaux += fauxRailPx;
                                 doorH = faceH - fauxHpx - fauxRailPx;
                             } else {
