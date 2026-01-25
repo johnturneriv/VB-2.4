@@ -5076,7 +5076,8 @@ recommended height is 30&quot; off the floor.">?</button>
             const stileWpx = (frame.stileWidthIn ?? FRAME_DEFAULTS.stileWidthIn) * px;
 
             const stroke = (typeof STROKE === "number" ? STROKE : 0.7);
-            const CROSS_THICK = stroke * 2; // the small dimension of patches
+            const CROSS_THICK = stroke * 2; // base thickness
+            const PATCH_W = CROSS_THICK + 1; // ✅ slightly wider to fully cover stacked seams (fixes “red oval” hairlines)
 
             const hasTopRail =
                 !removeTopRail &&
@@ -5090,7 +5091,6 @@ recommended height is 30&quot; off the floor.">?</button>
 
             const geom = computeGeometry(model);
             const { openTopY, openBottomY } = geom.vertical;
-
 
             // ======================================================
             // STILE JOINT PATCHES
@@ -5143,46 +5143,106 @@ recommended height is 30&quot; off the floor.">?</button>
             // ======================================================
             // DRAWER RAIL PATCHES (vertical)
             // ======================================================
-            const hasDrawer = sections.some(s => s.role === "drawer");
-            if (!hasDrawer) return;
-
             const openingH = openBottomY - openTopY;
             if (openingH <= 0) return;
 
-            sections.forEach((sec, sectionIndex) => {
-                if (sec.role !== "drawer") return;
+            const hasDrawer = sections.some(s => s.role === "drawer");
 
-                const faceLeft = ox + sec.xIn * px;
-                const faceRight = faceLeft + sec.widthIn * px;
+            if (hasDrawer) {
+                sections.forEach((sec, sectionIndex) => {
+                    if (sec.role !== "drawer") return;
 
-                // 🔒 MUST match the exact layout used to DRAW the drawers
-                const layout = getFinalDrawerLayoutForSection(
-                    model,
-                    sectionIndex,
-                    openingH
-                );
+                    const faceLeft = ox + sec.xIn * px;
+                    const faceRight = faceLeft + sec.widthIn * px;
 
-                if (!layout || layout.mode === "none" || layout.railHeightPx <= 0) return;
+                    // 🔒 MUST match the exact layout used to DRAW the drawers
+                    const layout = getFinalDrawerLayoutForSection(
+                        model,
+                        sectionIndex,
+                        openingH
+                    );
 
-                const railH = layout.railHeightPx;
-                let curY = openTopY;
+                    if (!layout || layout.mode === "none" || layout.railHeightPx <= 0) return;
 
-                for (let i = 0; i < layout.drawerCount; i++) {
-                    curY += layout.heightsPx[i];
+                    const railH = layout.railHeightPx;
+                    let curY = openTopY;
 
-                    const place =
-                        (layout.mode === "all" && i < layout.drawerCount - 1) ||
-                        (layout.mode === "top" && i === 0 && layout.drawerCount > 1);
+                    for (let i = 0; i < layout.drawerCount; i++) {
+                        curY += layout.heightsPx[i];
 
-                    if (place) {
-                        const cy = curY + railH / 2;
-                        patchRectCentered(svg, faceLeft, cy, CROSS_THICK, railH);
-                        patchRectCentered(svg, faceRight, cy, CROSS_THICK, railH);
+                        const place =
+                            (layout.mode === "all" && i < layout.drawerCount - 1) ||
+                            (layout.mode === "top" && i === 0 && layout.drawerCount > 1);
 
-                        curY += railH; // step past the rail
+                        if (place) {
+                            const cy = curY + railH / 2;
+
+                            // ✅ slightly wider patches so inner seams don’t “peek” through
+                            patchRectCentered(svg, faceLeft, cy, PATCH_W, railH);
+                            patchRectCentered(svg, faceRight, cy, PATCH_W, railH);
+
+                            curY += railH; // step past the rail
+                        }
                     }
+                });
+
+                // ======================================================
+                // FAUX DRAWER RAIL PATCHES (vertical)
+                // ======================================================
+                const fauxOn = model?.fauxDrawerUnderSink === true;
+                const railsOn = (model?.drawerRailsMode || "none") !== "none";
+                if (fauxOn && railsOn) {
+                    const sinkIdx = computeSinkSectionIndices(model, sections) || [];
+                    const sinkIdxSet = new Set(sinkIdx);
+
+                    sections.forEach((sec, sectionIndex) => {
+                        // faux drawer only applies to DOOR sections that hold sinks
+                        if (sec.role !== "door") return;
+                        if (!sinkIdxSet.has(sectionIndex)) return;
+
+                        // ✅ rail height MUST match the same logic used elsewhere (prevents “extra taller patch” / misalignment)
+                        const railLayout = computeDrawerLayout(
+                            openingH,
+                            px,
+                            model.topDrawerHeightPreset || "equal",
+                            model.drawerRailsMode || "none",
+                            model.drawerRailHeightIn ?? DEFAULT_DRAWER_RAIL_HEIGHT_IN,
+                            model
+                        );
+
+                        const fauxRailH = railLayout?.railHeightPx || 0;
+                        if (fauxRailH <= 0) return;
+
+                        // compute faux drawer height exactly like drawSectionFronts
+                        let fauxHIn = parseFloat(model.fauxDrawerHeightPreset);
+
+                        if (model.fauxDrawerHeightPreset === "equal") {
+                            if (isFinite(railLayout?.effectiveTopDrawerIn)) {
+                                fauxHIn = railLayout.effectiveTopDrawerIn;
+                            }
+                        }
+
+                        if (!isFinite(fauxHIn) || fauxHIn <= 0) fauxHIn = 6;
+                        fauxHIn = Math.min(Math.max(fauxHIn, 4), 10);
+
+                        const fauxHpx = Math.min(fauxHIn * px, openingH);
+
+                        // must match the draw condition: leave meaningful door height after faux+rail
+                        if ((openingH - fauxHpx - fauxRailH) < (2 * px)) return;
+
+                        const faceLeft = ox + sec.xIn * px;
+                        const faceRight = faceLeft + sec.widthIn * px;
+
+                        // rail sits directly under faux drawer
+                        const railTopY = openTopY + fauxHpx;
+                        const cy = railTopY + fauxRailH / 2;
+
+                        // ✅ same patch width strategy as drawer rails (covers stacked seams)
+                        patchRectCentered(svg, faceLeft, cy, PATCH_W, fauxRailH);
+                        patchRectCentered(svg, faceRight, cy, PATCH_W, fauxRailH);
+                    });
                 }
-            });
+            }
         }
 
         function drawShelf(svg, model) {
@@ -5652,16 +5712,6 @@ recommended height is 30&quot; off the floor.">?</button>
                                 // draw rail now, but queue the patch caps to draw LAST
                                 const patchLeft = idx > 0;
                                 const patchRight = idx < sections.length - 1;
-
-                                const patchFn = drawRailRectWithPatchesQueued(
-                                    faceX,
-                                    yAfterFaux,
-                                    faceW,
-                                    fauxRailPx,
-                                    patchLeft,
-                                    patchRight
-                                );
-                                if (typeof patchFn === "function") deferredPatchFns.push(patchFn);
 
                                 yAfterFaux += fauxRailPx;
                                 doorH = faceH - fauxHpx - fauxRailPx;
