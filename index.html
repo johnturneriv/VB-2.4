@@ -5398,7 +5398,6 @@ recommended height is 30&quot; off the floor.">?</button>
             return { minLeaves, maxLeaves };
         }
 
-
         function drawSectionFronts(svg, model) {
             const { sections, scale } = model;
             if (!sections || sections.length === 0) return;
@@ -5439,25 +5438,28 @@ recommended height is 30&quot; off the floor.">?</button>
                 return r;
             }
 
-            function drawRailRectWithPatches(x, y, w, h) {
-                // draw the rail exactly like other rails
+            // ✅ Draw rail rectangle, and return a "patch draw" function we can run LAST
+            function drawRailRectWithPatchesQueued(x, y, w, h) {
+                // draw the rail like other rails
                 drawFaceRect(x, y, w, h);
 
-                // add tiny end "patches" so the rail matches the drawer-rail look
-                const EXT = 0.5; // subtle extension (px) so caps are visible
-                const leftX = x;
-                const rightX = x + w;
+                // return deferred patch draw so caps render on top of later strokes
+                return () => {
+                    const EXT = 0.75; // slightly stronger so it's visible
+                    const leftX = x;
+                    const rightX = x + w;
 
-                [leftX, rightX].forEach((xx) => {
-                    const cap = document.createElementNS(ns, "line");
-                    cap.setAttribute("x1", xx);
-                    cap.setAttribute("x2", xx);
-                    cap.setAttribute("y1", y - EXT);
-                    cap.setAttribute("y2", y + h + EXT);
-                    cap.setAttribute("stroke", STRUCTURE_COLOR);
-                    cap.setAttribute("stroke-width", STROKE);
-                    svg.appendChild(cap);
-                });
+                    [leftX, rightX].forEach((xx) => {
+                        const cap = document.createElementNS(ns, "line");
+                        cap.setAttribute("x1", xx);
+                        cap.setAttribute("x2", xx);
+                        cap.setAttribute("y1", y - EXT);
+                        cap.setAttribute("y2", y + h + EXT);
+                        cap.setAttribute("stroke", STRUCTURE_COLOR);
+                        cap.setAttribute("stroke-width", STROKE);
+                        svg.appendChild(cap);
+                    });
+                };
             }
 
             // Old-style shaker panels (NO center-line trick)
@@ -5538,7 +5540,7 @@ recommended height is 30&quot; off the floor.">?</button>
 
                     curY += drawerH;
 
-                    // ✅ FIX: rails are rectangles AND we advance curY (old behavior)
+                    // rails are rectangles AND we advance curY (old behavior)
                     if (
                         layout.railHeightPx > 0 &&
                         (
@@ -5566,6 +5568,9 @@ recommended height is 30&quot; off the floor.">?</button>
                 if (sec.role === "drawer") {
                     drawDrawerStack(faceX, faceTop, faceW, faceH, drawerStyle, idx);
                 } else {
+                    // collect deferred patch drawers so they render on top
+                    const deferredPatchFns = [];
+
                     // ------------------------
                     // FAUX DRAWER (door sections only, sink sections only)
                     // ------------------------
@@ -5611,8 +5616,7 @@ recommended height is 30&quot; off the floor.">?</button>
                                 }
                             }
 
-                            // ✅ ALWAYS draw a rail under faux drawer if rails are enabled
-                            // (doesn't matter "top only" vs "all" — faux->door boundary always gets a rail)
+                            // ALWAYS draw a rail under faux drawer if rails are enabled
                             const fauxRailPx = (drawerRailsMode && drawerRailsMode !== "none")
                                 ? (drawerRailHeightIn * px)
                                 : 0;
@@ -5620,7 +5624,10 @@ recommended height is 30&quot; off the floor.">?</button>
                             let yAfterFaux = faceTop + fauxHpx;
 
                             if (fauxRailPx > 0 && (faceH - fauxHpx - fauxRailPx) >= 2 * px) {
-                                drawRailRectWithPatches(faceX, yAfterFaux, faceW, fauxRailPx);
+                                // draw rail now, but queue the patch caps to draw LAST
+                                const patchFn = drawRailRectWithPatchesQueued(faceX, yAfterFaux, faceW, fauxRailPx);
+                                if (typeof patchFn === "function") deferredPatchFns.push(patchFn);
+
                                 yAfterFaux += fauxRailPx;
                                 doorH = faceH - fauxHpx - fauxRailPx;
                             } else {
@@ -5695,6 +5702,11 @@ recommended height is 30&quot; off the floor.">?</button>
                             addShakerPanels(faceX, doorTop, faceW, doorH, railIn, kind);
                         }
                     }
+
+                    // ✅ draw faux-rail caps last so they're not visually swallowed
+                    deferredPatchFns.forEach(fn => {
+                        try { fn(); } catch (e) { }
+                    });
                 }
 
                 // selection overlay (doors + drawers)
